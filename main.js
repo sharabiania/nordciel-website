@@ -19,6 +19,8 @@ const SECTIONS = ['home', 'work', 'services', 'contact'];
 const navLabels = () => SECTIONS.map((s) => up(`nav.${s}`));
 const YEAR = new Date().getFullYear();
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Phones and tablets get a lighter scene (fewer stars, lower pixel ratio, no glass refraction).
+const LOW_POWER = window.matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700;
 
 const V3 = THREE.Vector3;
 const smooth = THREE.MathUtils.smoothstep;
@@ -35,7 +37,7 @@ try {
   document.body.classList.add('fallback');
   throw err;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOW_POWER ? 1.5 : 2));
 renderer.setClearColor(COL.dark, 1);
 
 const scene = new THREE.Scene();
@@ -51,7 +53,7 @@ const uTime = { value: 0 };
 const bg = new THREE.Group();
 scene.add(bg);
 
-const STAR_COUNT = 3500;
+const STAR_COUNT = LOW_POWER ? 2200 : 3500;
 const starPos = new Float32Array(STAR_COUNT * 3);
 const starSize = new Float32Array(STAR_COUNT);
 for (let i = 0; i < STAR_COUNT; i++) {
@@ -138,7 +140,7 @@ function contentBoxes() {
     root.updateMatrixWorld(true);
     root.traverse((o) => {
       const isPanel = o.isMesh && o.material?.uniforms?.uSize;
-      if (!(o instanceof Text) && !isPanel) return;
+      if (!(o instanceof Text) && !isPanel && !o.userData.avoid) return;
       if (!o.visible) return;
       _box.setFromObject(o);
       if (_box.isEmpty()) return;
@@ -330,7 +332,7 @@ function auroraMaterial(a, b, off) {
   [COL.cyan, 0xb26cff, 2.1, 12, -34],
   [COL.mint, COL.cyan, 4.2, 6, -42],
 ].forEach(([a, b, off, y, z]) => {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(90, 9, 240, 20), auroraMaterial(a, b, off));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(90, 9, LOW_POWER ? 120 : 240, LOW_POWER ? 10 : 20), auroraMaterial(a, b, off));
   m.position.set(0, y, z);
   m.rotation.x = -0.3;
   bg.add(m);
@@ -379,8 +381,7 @@ function T(str, o = {}) {
       const b = t.textRenderInfo?.blockBounds;
       const w = b ? b[2] - b[0] : 0;
       if (w > o.fit) {
-        const k = o.fit / w;
-        t.fontSize *= k;
+        t.fontSize *= o.fit / w;
         if (o.glow != null) t.outlineBlur = t.fontSize * 0.5;
         t.sync(() => o.onSync?.(t));
         return;
@@ -395,6 +396,18 @@ function T(str, o = {}) {
     t.sync(done);
   }
   return t;
+}
+
+/** Rough line count for wrapped text, used to size cards before fonts load. */
+function estLines(text, size, maxW, charW = 0.52) {
+  const cw = size * charW;
+  let lines = 1;
+  let x = 0;
+  for (const word of String(text).split(/\s+/)) {
+    const w = word.length * cw;
+    if (x > 0 && x + cw * 0.55 + w > maxW) { lines++; x = w; } else x += (x > 0 ? cw * 0.55 : 0) + w;
+  }
+  return lines;
 }
 
 const panelVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -421,14 +434,18 @@ const panelFS = `
     gl_FragColor = vec4(col, a * uOpacity);
   }`;
 
-/** Holographic glass panel with glowing border. */
+/**
+ * Holographic glass panel with glowing border. `unit` lets HUD panels be
+ * authored in pixels while the shader keeps world-like proportions.
+ */
 function Panel(w, h, o = {}) {
+  const u = o.unit ?? 1;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
-      uSize: { value: new THREE.Vector2(w, h) }, uTime,
+      uSize: { value: new THREE.Vector2(w / u, h / u) }, uTime,
       uHover: { value: 0 }, uOpacity: { value: 1 },
       uA: { value: new THREE.Color(o.a ?? COL.mint) }, uB: { value: new THREE.Color(o.b ?? COL.violet) },
-      uR: { value: o.radius ?? 0.3 }, uFill: { value: o.fill ?? 0.42 }, uSolid: { value: o.solid ? 1 : 0 },
+      uR: { value: (o.radius ?? 0.3) / u }, uFill: { value: o.fill ?? 0.42 }, uSolid: { value: o.solid ? 1 : 0 },
     },
     vertexShader: panelVS, fragmentShader: panelFS,
     transparent: true, depthWrite: false, depthTest: !o.hud,
@@ -507,15 +524,16 @@ function addHit(mesh, owner, onClick, apply, enabled) {
 }
 const mail = openMail;
 const openInstagram = () => window.open(INSTAGRAM_URL, '_blank', 'noopener');
+const goPrivacy = () => { location.href = `privacy.html${location.search}`; };
 const EMAIL_LABEL = () => email().toUpperCase();
 
 function Button(label, o) {
   const g = new THREE.Group();
   const h = o.h ?? 0.9;
-  const p = Panel(o.w, h, { radius: h / 2, fill: 0.22, solid: o.primary, hud: o.hud });
+  const p = Panel(o.w, h, { radius: h / 2, fill: 0.22, solid: o.primary });
   g.add(p);
   const t = T(label, { font: F_MED, size: o.size ?? 0.24, ls: 0.12, ax: 'center', ay: 'middle',
-    color: o.primary ? COL.dark : COL.text, z: 0.05, hud: o.hud, x: o.icon ? h * 0.3 : 0 });
+    color: o.primary ? COL.dark : COL.text, z: 0.05, x: o.icon ? h * 0.3 : 0, fit: o.w - h * (o.icon ? 1.6 : 0.9) });
   g.add(t);
   if (o.icon) {
     o.icon.position.set(-o.w / 2 + h * 0.75, 0, 0.05);
@@ -529,23 +547,37 @@ function Button(label, o) {
   return g;
 }
 
+// Card type sizes per layout (world units).
+const CARD_SZ = {
+  phone: { pad: 0.5, num: 0.22, title: 0.52, body: 0.31, lh: 1.5, footer: 0.22, icon: 0.5 },
+  tablet: { pad: 0.48, num: 0.2, title: 0.5, body: 0.29, lh: 1.5, footer: 0.21, icon: 0.5 },
+  desktop: { pad: 0.42, num: 0.18, title: 0.48, body: 0.25, lh: 1.5, footer: 0.19, icon: 0.45 },
+};
+
+function cardHeight(c, w, s) {
+  const lines = estLines(c.body, s.body, w - s.pad * 2);
+  return s.pad + s.num + 0.2 + s.title * 1.15 + 0.3 + lines * s.body * s.lh + (c.footer ? 0.45 + s.footer : 0) + s.pad;
+}
+
 function Card(o) {
-  const { w, h } = o;
-  const pad = 0.42;
+  const { w, s } = o;
+  const h = o.h ?? cardHeight(o, w, s);
   const g = new THREE.Group();
   const p = Panel(w, h);
   g.add(p);
-  const L = -w / 2 + pad;
-  const top = h / 2 - pad;
-  g.add(T(o.num, { font: F_MED, size: 0.18, color: COL.mint, ls: 0.25, x: L, y: top }));
-  g.add(T(o.title, { font: F_DISPLAY, size: o.compact ? 0.42 : 0.48, x: L, y: top - 0.38, fit: w - pad * 2 - 1.4 }));
-  g.add(T(o.body, { size: o.compact ? 0.22 : 0.25, color: COL.muted, lh: 1.5, maxWidth: w - pad * 2,
-    x: L, y: top - (o.compact ? 0.98 : 1.08) }));
+  const L = -w / 2 + s.pad;
+  const top = h / 2 - s.pad;
+  const iconSpace = s.icon * 2.2;
+  g.add(T(o.num, { font: F_MED, size: s.num, color: COL.mint, ls: 0.25, x: L, y: top }));
+  const yTitle = top - s.num - 0.2;
+  g.add(T(o.title, { font: F_DISPLAY, size: s.title, x: L, y: yTitle, fit: w - s.pad * 2 - iconSpace }));
+  g.add(T(o.body, { size: s.body, color: COL.muted, lh: s.lh, maxWidth: w - s.pad * 2, x: L, y: yTitle - s.title * 1.15 - 0.3 }));
   if (o.footer) {
-    g.add(T(o.footer, { font: F_MED, size: 0.19, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: -h / 2 + pad, ay: 'bottom' }));
+    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: -h / 2 + s.pad, ay: 'bottom' }));
   }
   const icon = ICONS[o.icon]();
-  icon.position.set(w / 2 - pad - 0.45, h / 2 - pad - 0.45, 0.35);
+  icon.scale.setScalar(s.icon / 0.48);
+  icon.position.set(w / 2 - s.pad - s.icon, top - s.icon * 0.8, 0.35);
   icon.userData.spin = 1;
   icons.push(icon);
   g.add(icon);
@@ -555,6 +587,7 @@ function Card(o) {
     g.scale.setScalar(1 + v * 0.025);
     icon.userData.spin = 1 + v * 4;
   });
+  g.userData.h = h;
   return g;
 }
 
@@ -564,6 +597,39 @@ function disposeTree(root) {
     o.geometry?.dispose();
     if (o.material && o.material !== hitMaterial) o.material.dispose?.();
   });
+}
+
+// ---------------------------------------------------------------------------
+// Layout modes. Content is authored in world units; the camera distance is
+// chosen so 1 unit = S pixels, keeping text readable on every screen size.
+// ---------------------------------------------------------------------------
+const MODES = {
+  phone: { cols: 1, cardW: 7.0, gap: 0.38, W: 7.0, colW: 7.0 },
+  tablet: { cols: 2, cardW: 6.4, gap: 0.5, W: 13.3, colW: 10 },
+  desktop: { cols: 3, cardW: 6.4, gap: 0.6, W: 20.4 },
+};
+const clamp = THREE.MathUtils.clamp;
+let mode = null;
+let SHORT = false; // short screen (phone in landscape)
+let S = 50; // pixels per world unit at the content plane
+let HUD_TOP = 84;
+let HUD_BOTTOM = 56;
+
+function desktopScale() { return Math.min((innerWidth - 180) / 21.5, (innerHeight - 84 - 56) / 10.8); }
+function chooseMode() {
+  if (innerWidth >= 1000 && innerHeight >= 560 && desktopScale() >= 42) return 'desktop';
+  if (innerWidth >= 640) return 'tablet'; // includes phones in landscape
+  return 'phone';
+}
+function scaleFor(m) {
+  if (m === 'desktop') return desktopScale();
+  if (m === 'tablet') {
+    const byWidth = (innerWidth - 80) / MODES.tablet.W;
+    // Landscape phones: also fit the home screen's height so it shows in full.
+    const byHeight = innerHeight < 500 ? (innerHeight - 92) / 6.2 : Infinity;
+    return clamp(Math.min(byWidth, byHeight), 38, 75);
+  }
+  return clamp((innerWidth - 36) / MODES.phone.W, 38, 72);
 }
 
 // ---------------------------------------------------------------------------
@@ -591,11 +657,12 @@ let crystal = null;
 
 function makeCrystal() {
   const group = new THREE.Group();
-  const core = new THREE.Mesh(
-    new THREE.OctahedronGeometry(1.6, 0),
-    new THREE.MeshPhysicalMaterial({ color: 0x9fe8ff, metalness: 0.1, roughness: 0.05, transmission: 0.6, thickness: 1,
-      flatShading: true, emissive: 0x1a2a6a, emissiveIntensity: 0.5, transparent: true })
-  );
+  const coreMat = LOW_POWER
+    ? new THREE.MeshStandardMaterial({ color: 0x7fd8ff, metalness: 0.2, roughness: 0.15, flatShading: true,
+      emissive: 0x1a2a6a, emissiveIntensity: 0.6, transparent: true, opacity: 0.85 })
+    : new THREE.MeshPhysicalMaterial({ color: 0x9fe8ff, metalness: 0.1, roughness: 0.05, transmission: 0.6, thickness: 1,
+      flatShading: true, emissive: 0x1a2a6a, emissiveIntensity: 0.5, transparent: true });
+  const core = new THREE.Mesh(new THREE.OctahedronGeometry(1.6, 0), coreMat);
   const w = edges(new THREE.OctahedronGeometry(1.63, 0), COL.mint);
   const ring1 = new THREE.Mesh(new THREE.TorusGeometry(2.8, 0.015, 8, 160),
     new THREE.MeshBasicMaterial({ color: COL.violet, transparent: true, opacity: 0.7 }));
@@ -604,43 +671,189 @@ function makeCrystal() {
     new THREE.MeshBasicMaterial({ color: COL.cyan, transparent: true, opacity: 0.5 }));
   ring2.rotation.x = Math.PI / 1.8;
   group.add(core, w, ring1, ring2);
-  group.userData = { core, w, ring1, ring2 };
+  group.userData = { core, w, ring1, ring2, baseY: 0, avoid: true };
   return group;
-}
-
-function sectionHeader(g, num, label, o) {
-  g.add(T(`${num} / ${label.toUpperCase()}`, { font: F_MED, size: o.small ? 0.18 : 0.22, color: COL.mint, ls: 0.3,
-    x: o.x, y: o.y, ax: o.ax, align: o.align }));
-  g.add(T(label, { font: F_DISPLAY, size: o.size, x: o.x, y: o.y - 0.4, ax: o.ax, align: o.align,
-    glow: COL.cyan, glowA: 0.3, maxWidth: o.maxWidth, fit: o.fit }));
 }
 
 // Visual config per card; the words come from the locale files (same order).
 const WORK_ICONS = ['piano', 'gem', 'ring'];
 const SERVICE_ICONS = ['ico', 'knot', 'cube'];
-const cardList = (key, icons) => tr(`${key}.items`).map((item, i) => ({
+const cardList = (key, icns) => tr(`${key}.items`).map((item, i) => ({
   num: String(i + 1).padStart(2, '0'),
   title: item.title,
   body: item.body,
   footer: item.status ? item.status.toUpperCase() : null,
   footerColor: COL.violet,
-  icon: icons[i],
+  icon: icns[i],
 }));
 
-function buildCards(g, owner, list, narrow) {
-  list.forEach((c, i) => {
-    const card = narrow
-      ? Card({ ...c, owner, w: 6.4, h: 3.6, compact: true })
-      : Card({ ...c, owner, w: 6.4, h: 4.4 });
-    const holder = new THREE.Group();
-    if (narrow) holder.position.set(0, 3.6 - i * 3.9, 0);
-    else { holder.position.set((i - 1) * 7, -0.8, 0); holder.rotation.y = (1 - i) * 0.08; }
-    holder.add(card);
-    g.add(holder);
-  });
+function buildHome(g, m) {
+  crystal = makeCrystal();
+  g.add(crystal);
+  if (m === 'desktop') {
+    const L = -10.5;
+    g.add(T(up('home.eyebrow'), { font: F_MED, size: 0.26, color: COL.mint, ls: 0.3, x: L, y: 3.7 }));
+    g.add(T('NORDCIEL', { font: F_DISPLAY, size: 2.7, ls: 0.02, x: L, y: 3.3, glow: COL.cyan, glowA: 0.35 }));
+    g.add(T(tr('home.tagline'), { font: F_MED, size: 0.62, color: COL.mint, x: L, y: 0.3, glow: COL.mint, glowA: 0.25, fit: 13.2 }));
+    g.add(T(tr('home.lead'), { size: 0.3, color: COL.muted, lh: 1.55, maxWidth: 9, x: L, y: -0.75 }));
+    const b1 = Button(up('home.ctaWork'), { w: 4.2, owner: 'home', primary: true, onClick: () => go(1) });
+    b1.position.set(L + 2.1, -2.95, 0);
+    const b2 = Button(EMAIL_LABEL(), { w: 5.4, owner: 'home', onClick: mail });
+    b2.position.set(L + 4.5 + 2.7, -2.95, 0);
+    g.add(b1, b2);
+    crystal.position.set(6.6, 0.4, 0);
+    crystal.userData.baseY = 0.4;
+    g.userData.bounds = { top: 4.1, bottom: -3.55, cx: -0.6 };
+    return;
+  }
+  if (m === 'tablet' && SHORT) {
+    // Landscape phone: text column on the left, crystal on the right.
+    const L = -MODES.tablet.W / 2;
+    const CW = 7.6;
+    let y = 0;
+    g.add(T(up('home.eyebrow'), { font: F_MED, size: 0.24, color: COL.mint, ls: 0.3, x: L, y, fit: CW }));
+    y -= 0.24 + 0.25;
+    g.add(T('NORDCIEL', { font: F_DISPLAY, size: 1.5, x: L, y, glow: COL.cyan, glowA: 0.35, fit: CW }));
+    y -= 1.5 * 1.05 + 0.2;
+    g.add(T(tr('home.tagline'), { font: F_MED, size: 0.46, color: COL.mint, maxWidth: CW, lh: 1.2, x: L, y }));
+    y -= estLines(tr('home.tagline'), 0.46, CW, 0.56) * 0.46 * 1.2 + 0.25;
+    g.add(T(tr('home.lead'), { size: 0.29, color: COL.muted, lh: 1.5, maxWidth: CW, x: L, y }));
+    y -= estLines(tr('home.lead'), 0.29, CW) * 0.29 * 1.5 + 0.4;
+    const b1 = Button(up('home.ctaWork'), { w: 3.6, h: 0.9, size: 0.22, owner: 'home', primary: true, onClick: () => go(1) });
+    b1.position.set(L + 1.8, y - 0.45, 0);
+    const b2 = Button(EMAIL_LABEL(), { w: 4.4, h: 0.9, size: 0.22, owner: 'home', onClick: mail });
+    b2.position.set(L + 3.6 + 0.3 + 2.2, y - 0.45, 0);
+    g.add(b1, b2);
+    y -= 0.9;
+    crystal.scale.setScalar(0.55);
+    crystal.position.set(4.4, y / 2, -0.5);
+    crystal.userData.baseY = y / 2;
+    g.userData.bounds = { top: 0, bottom: y, cx: 0 };
+    return;
+  }
+  // Phone / tablet: a centred column, laid out top-down from y = 0.
+  const CW = MODES[m].colW;
+  const tab = m === 'tablet';
+  const c = { ax: 'center', align: 'center' };
+  const cs = tab ? 0.62 : 0.46;
+  crystal.scale.setScalar(cs);
+  crystal.position.set(0, -3.3 * cs, -0.5);
+  crystal.userData.baseY = -3.3 * cs;
+  let y = -6.6 * cs - 0.2;
+  const eb = tab ? 0.26 : 0.24;
+  g.add(T(up('home.eyebrow'), { ...c, font: F_MED, size: eb, color: COL.mint, ls: 0.3, y, fit: CW }));
+  y -= eb + 0.32;
+  const ts = tab ? 1.9 : 1.35;
+  g.add(T('NORDCIEL', { ...c, font: F_DISPLAY, size: ts, y, glow: COL.cyan, glowA: 0.35, fit: CW }));
+  y -= ts * 1.05 + 0.3;
+  const tg = tab ? 0.6 : 0.5;
+  g.add(T(tr('home.tagline'), { ...c, font: F_MED, size: tg, color: COL.mint, maxWidth: CW, lh: 1.2, y }));
+  y -= estLines(tr('home.tagline'), tg, CW, 0.56) * tg * 1.2 + 0.35;
+  const ls = tab ? 0.34 : 0.32;
+  const lw = CW * 0.96;
+  g.add(T(tr('home.lead'), { ...c, size: ls, color: COL.muted, lh: 1.55, maxWidth: lw, y }));
+  y -= estLines(tr('home.lead'), ls, lw) * ls * 1.55 + 0.6;
+  const bh = 1.05;
+  const bw = tab ? 6.4 : CW;
+  const b1 = Button(up('home.ctaWork'), { w: bw, h: bh, size: 0.27, owner: 'home', primary: true, onClick: () => go(1) });
+  b1.position.set(0, y - bh / 2, 0);
+  y -= bh + 0.3;
+  const b2 = Button(EMAIL_LABEL(), { w: bw, h: bh, size: 0.27, owner: 'home', onClick: mail });
+  b2.position.set(0, y - bh / 2, 0);
+  y -= bh;
+  g.add(b1, b2);
+  g.userData.bounds = { top: 0, bottom: y, cx: 0 };
 }
 
-function buildSections(narrow) {
+function buildCardsSection(g, name, num, icns, m) {
+  const label = tr(`${name}.title`);
+  const list = cardList(name, icns);
+  const M = MODES[m];
+  const s = CARD_SZ[m];
+  if (m === 'desktop') {
+    g.add(T(`${num} / ${label.toUpperCase()}`, { font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, x: -10.2, y: 4.9 }));
+    g.add(T(label, { font: F_DISPLAY, size: 1.3, x: -10.2, y: 4.5, glow: COL.cyan, glowA: 0.3 }));
+    const h = Math.max(4.4, ...list.map((c) => cardHeight(c, M.cardW, s)));
+    list.forEach((c, i) => {
+      const holder = new THREE.Group();
+      holder.position.set((i - 1) * (M.cardW + M.gap), -0.8, 0);
+      holder.rotation.y = (1 - i) * 0.08;
+      holder.add(Card({ ...c, owner: name, w: M.cardW, h, s }));
+      g.add(holder);
+    });
+    g.userData.bounds = { top: 5.2, bottom: -0.8 - h / 2, cx: 0 };
+    return;
+  }
+  const L = -M.W / 2;
+  const tab = m === 'tablet';
+  g.add(T(`${num} / ${label.toUpperCase()}`, { font: F_MED, size: 0.24, color: COL.mint, ls: 0.3, x: L, y: 0 }));
+  const hs = tab ? 1.2 : 1.05;
+  g.add(T(label, { font: F_DISPLAY, size: hs, x: L, y: -0.42, glow: COL.cyan, glowA: 0.3, fit: M.W }));
+  let y = -0.42 - hs * 1.15 - 0.4;
+  for (let r = 0; r < list.length; r += M.cols) {
+    const row = list.slice(r, r + M.cols);
+    const h = Math.max(...row.map((c) => cardHeight(c, M.cardW, s)));
+    row.forEach((c, k) => {
+      const holder = new THREE.Group();
+      const x = row.length < M.cols ? 0 : L + M.cardW / 2 + k * (M.cardW + M.gap);
+      holder.position.set(x, y - h / 2, 0);
+      holder.add(Card({ ...c, owner: name, w: M.cardW, h, s }));
+      g.add(holder);
+    });
+    y -= h + M.gap;
+  }
+  g.userData.bounds = { top: 0, bottom: y + M.gap, cx: 0 };
+}
+
+function buildContact(g, m) {
+  const c = { ax: 'center', align: 'center' };
+  if (m === 'desktop') {
+    g.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, y: 3.2 }));
+    g.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 1.5, y: 2.7, glow: COL.cyan, glowA: 0.35, fit: 16 }));
+    g.add(T(tr('contact.lead'), { ...c, size: 0.34, color: COL.muted, y: 0.4, fit: 16 }));
+    const b = Button(EMAIL_LABEL(), { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
+    b.position.set(0, -1.4, 0);
+    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: openInstagram, icon: igIcon(0.32, COL.mint) });
+    ig.position.set(-2.8, -2.9, 0);
+    const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: goPrivacy });
+    p.position.set(2.8, -2.9, 0);
+    g.add(b, ig, p);
+    g.userData.bounds = { top: 3.5, bottom: -3.3, cx: 0 };
+    return;
+  }
+  const tab = m === 'tablet';
+  const CW = MODES[m].colW;
+  let y = 0;
+  g.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.24, color: COL.mint, ls: 0.3, y }));
+  y -= 0.24 + 0.35;
+  const ts = tab ? 1.3 : 0.95;
+  g.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: ts, maxWidth: CW, lh: 1.1, y, glow: COL.cyan, glowA: 0.35 }));
+  y -= estLines(tr('contact.title'), ts, CW, 0.6) * ts * 1.1 + 0.4;
+  const ls = tab ? 0.34 : 0.32;
+  g.add(T(tr('contact.lead'), { ...c, size: ls, maxWidth: CW * 0.92, color: COL.muted, lh: 1.5, y }));
+  y -= estLines(tr('contact.lead'), ls, CW * 0.92) * ls * 1.5 + 0.6;
+  const bw = tab ? 8 : CW;
+  const b = Button(EMAIL_LABEL(), { w: bw, h: 1.15, size: tab ? 0.34 : 0.3, owner: 'contact', primary: true, onClick: mail });
+  b.position.set(0, y - 0.575, 0);
+  y -= 1.15 + 0.35;
+  const sh = 0.85;
+  const igB = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: tab ? 3.9 : CW, h: sh, size: 0.22, owner: 'contact', onClick: openInstagram, icon: igIcon(0.34, COL.mint) });
+  const pB = Button(up('footer.privacy'), { w: tab ? 3.9 : CW, h: sh, size: 0.2, owner: 'contact', onClick: goPrivacy });
+  if (tab) {
+    igB.position.set(-2.05, y - sh / 2, 0);
+    pB.position.set(2.05, y - sh / 2, 0);
+    y -= sh;
+  } else {
+    igB.position.set(0, y - sh / 2, 0);
+    y -= sh + 0.3;
+    pB.position.set(0, y - sh / 2, 0);
+    y -= sh;
+  }
+  g.add(b, igB, pB);
+  g.userData.bounds = { top: 0, bottom: y, cx: 0 };
+}
+
+function buildSections(m) {
   for (let i = hits.length - 1; i >= 0; i--) if (hits[i].owner !== 'hud') hits.splice(i, 1);
   icons = [];
   for (const name of SECTIONS) {
@@ -649,92 +862,16 @@ function buildSections(narrow) {
     g.clear();
     g.userData.alpha = -1;
   }
-
-  // HOME
-  const home = sections.home;
-  crystal = makeCrystal();
-  home.add(crystal);
-  if (!narrow) {
-    const L = -10.5;
-    home.add(T(up('home.eyebrow'), { font: F_MED, size: 0.26, color: COL.mint, ls: 0.3, x: L, y: 3.7 }));
-    home.add(T('NORDCIEL', { font: F_DISPLAY, size: 2.7, ls: 0.02, x: L, y: 3.3, glow: COL.cyan, glowA: 0.35 }));
-    home.add(T(tr('home.tagline'), { font: F_MED, size: 0.62, color: COL.mint, x: L, y: 0.3, glow: COL.mint, glowA: 0.25, fit: 13.2 }));
-    home.add(T(tr('home.lead'), { size: 0.3, color: COL.muted, lh: 1.55, maxWidth: 9, x: L, y: -0.75 }));
-    const b1 = Button(up('home.ctaWork'), { w: 4.2, owner: 'home', primary: true, onClick: () => go(1) });
-    b1.position.set(L + 2.1, -2.95, 0);
-    const b2 = Button(EMAIL_LABEL(), { w: 5.4, owner: 'home', onClick: mail });
-    b2.position.set(L + 4.5 + 2.7, -2.95, 0);
-    home.add(b1, b2);
-    crystal.position.set(6.6, 0.4, 0);
-    home.userData.bounds = { w: 21.5, h: 9.5, cx: -0.6, cy: 0.3 };
-  } else {
-    const c = { ax: 'center', align: 'center' };
-    crystal.position.set(0, 4.5, -1);
-    crystal.scale.setScalar(0.55);
-    home.add(T(up('home.eyebrow'), { ...c, font: F_MED, size: 0.2, color: COL.mint, ls: 0.3, y: 2.45, fit: 6.8 }));
-    home.add(T('NORDCIEL', { ...c, font: F_DISPLAY, size: 1.35, y: 2.1, glow: COL.cyan, glowA: 0.35 }));
-    home.add(T(tr('home.tagline'), { ...c, font: F_MED, size: 0.4, color: COL.mint, maxWidth: 6.5, y: 0.45 }));
-    home.add(T(tr('home.lead'), { ...c, size: 0.25, color: COL.muted, lh: 1.55, maxWidth: 6.2, y: -0.35 }));
-    const b1 = Button(up('home.ctaWork'), { w: 5.6, h: 0.95, owner: 'home', primary: true, onClick: () => go(1) });
-    b1.position.set(0, -2.6, 0);
-    const b2 = Button(EMAIL_LABEL(), { w: 5.6, h: 0.95, owner: 'home', onClick: mail });
-    b2.position.set(0, -3.8, 0);
-    home.add(b1, b2);
-    home.userData.bounds = { w: 7.2, h: 11.6, cx: 0, cy: 0.6 };
-  }
-
-  // WORK + SERVICES
-  for (const [name, num, icons] of [['work', '02', WORK_ICONS], ['services', '03', SERVICE_ICONS]]) {
-    const g = sections[name];
-    const label = tr(`${name}.title`);
-    const list = cardList(name, icons);
-    if (!narrow) {
-      sectionHeader(g, num, label, { x: -10.2, y: 4.9, size: 1.3 });
-      buildCards(g, name, list, false);
-      g.userData.bounds = { w: 22, h: 10, cx: 0, cy: 1.1 };
-    } else {
-      sectionHeader(g, num, label, { x: -3.2, y: 7.0, size: 0.85, small: true });
-      buildCards(g, name, list, true);
-      g.userData.bounds = { w: 7.2, h: 13.8, cx: 0, cy: 0.6 };
-    }
-  }
-
-  // CONTACT
-  const ct = sections.contact;
-  const c = { ax: 'center', align: 'center' };
-  const privacyHref = () => { location.href = `privacy.html${location.search}`; };
-  if (!narrow) {
-    ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, y: 3.2 }));
-    ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 1.5, y: 2.7, glow: COL.cyan, glowA: 0.35, fit: 16 }));
-    ct.add(T(tr('contact.lead'), { ...c, size: 0.34, color: COL.muted, y: 0.4, fit: 16 }));
-    const b = Button(EMAIL_LABEL(), { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
-    b.position.set(0, -1.4, 0);
-    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: openInstagram, icon: igIcon(0.32, COL.mint) });
-    ig.position.set(-2.8, -2.9, 0);
-    const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: privacyHref });
-    p.position.set(2.8, -2.9, 0);
-    ct.add(b, ig, p);
-    ct.userData.bounds = { w: 17, h: 9, cx: 0, cy: 0.1 };
-  } else {
-    ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.18, color: COL.mint, ls: 0.3, y: 3.0 }));
-    ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 0.85, maxWidth: 6.4, y: 2.6, glow: COL.cyan, glowA: 0.35 }));
-    ct.add(T(tr('contact.lead'), { ...c, size: 0.26, maxWidth: 6, color: COL.muted, lh: 1.5, y: 0.5 }));
-    const b = Button(EMAIL_LABEL(), { w: 6.2, h: 1.1, size: 0.3, owner: 'contact', primary: true, onClick: mail });
-    b.position.set(0, -1.2, 0);
-    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.15, owner: 'contact', onClick: openInstagram, icon: igIcon(0.3, COL.mint) });
-    ig.position.set(0, -2.45, 0);
-    ct.add(ig);
-    const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.14, owner: 'contact', onClick: privacyHref });
-    p.position.set(0, -3.35, 0);
-    ct.add(b, p);
-    ct.userData.bounds = { w: 7.2, h: 9.4, cx: 0, cy: 0 };
-  }
-
+  buildHome(sections.home, m);
+  buildCardsSection(sections.work, 'work', '02', WORK_ICONS, m);
+  buildCardsSection(sections.services, 'services', '03', SERVICE_ICONS, m);
+  buildContact(sections.contact, m);
   for (const name of SECTIONS) sections[name].updateMatrixWorld(true);
 }
 
 // ---------------------------------------------------------------------------
-// HUD (menu, progress, footer) — attached to the camera
+// HUD (menu, progress, footer): attached to the camera and authored in CSS
+// pixels, so it stays crisp and the same physical size on every screen.
 // ---------------------------------------------------------------------------
 const HUD_Z = 5;
 const hud = new THREE.Group();
@@ -742,88 +879,101 @@ hud.position.z = -HUD_Z;
 camera.add(hud);
 let hudEls = null;
 let menuOpen = false;
+const fov2 = () => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+const hudUnitsPerPx = () => (2 * HUD_Z * fov2()) / innerHeight;
 
 function textWidth(t, fallback) {
   const b = t.textRenderInfo?.blockBounds;
   return b ? b[2] - b[0] : fallback;
 }
 
-function buildHud(narrow) {
+const HUD_SZ = {
+  desktop: { m: 32, brand: 19, star: 17, menu: 12.5, lang: 11, foot: 10.5, hint: 10, top: 84, bottom: 56 },
+  tablet: { m: 28, brand: 17, star: 15, toggle: 14, item: 21, lang: 14, foot: 11, hint: 10, top: 72, bottom: 64 },
+  phone: { m: 18, brand: 16, star: 14, toggle: 13.5, item: 20, lang: 14, foot: 10.5, hint: 10, top: 64, bottom: 64 },
+};
+
+function buildHud(m) {
   for (let i = hits.length - 1; i >= 0; i--) if (hits[i].owner === 'hud') hits.splice(i, 1);
   disposeTree(hud);
   hud.clear();
   menuOpen = false;
-
+  const Z = HUD_SZ[m];
+  const compact = m !== 'desktop';
   const relayout = () => layoutHud();
-  const E = { narrow };
+  const E = { m, compact, Z };
+  const hudMat = (c, opacity = 1) => new THREE.MeshBasicMaterial({ color: c, depthTest: false, transparent: true, opacity });
 
-  E.star = new THREE.Mesh(starShape(0.13), new THREE.MeshBasicMaterial({ color: COL.mint, depthTest: false, transparent: true }));
+  E.star = new THREE.Mesh(starShape(Z.star / 2), hudMat(COL.mint));
   E.star.renderOrder = 1000;
-  E.brand = T('NORDCIEL', { font: F_DISPLAY, size: 0.17, ls: 0.18, ay: 'middle', hud: true, onSync: relayout });
+  E.brand = T('NORDCIEL', { font: F_DISPLAY, size: Z.brand, ls: 0.18, ay: 'middle', hud: true, onSync: relayout });
   E.brandHit = HitPlane();
   addHit(E.brandHit, 'hud', () => go(0), (v) => { E.star.rotation.z = v * Math.PI / 2; });
   hud.add(E.star, E.brand, E.brandHit);
 
-  // Language switch: shows the *other* language (e.g. "FR" while viewing English)
   const otherLang = Object.keys(LANGUAGES).find((l) => l !== getLang());
-  E.lang = T(otherLang.toUpperCase(), { font: F_MED, size: narrow ? 0.14 : 0.115, ls: 0.15, ax: 'center', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
-  E.langPill = Panel(narrow ? 0.62 : 0.52, narrow ? 0.36 : 0.3, { hud: true, radius: narrow ? 0.18 : 0.15, fill: 0.15 });
+  const menuVisible = () => !compact || menuOpen;
+
+  // Language pill: shows the *other* language
+  E.lang = T(otherLang.toUpperCase(), { font: F_MED, size: Z.lang, ls: 0.15, ax: 'center', ay: 'middle', hud: true, color: COL.text });
+  E.langPill = Panel(Z.lang * 4.2, Z.lang * 2.4, { hud: true, unit: 100, radius: Z.lang * 1.2, fill: 0.15 });
   E.langHit = HitPlane();
   addHit(E.langHit, 'hud', () => setLang(otherLang), (v) => {
     E.langPill.material.uniforms.uHover.value = v;
     E.lang.color = v > 0.5 ? COL.mint : COL.text;
-  }, () => !narrow || menuOpen);
+  }, menuVisible);
   hud.add(E.langPill, E.lang, E.langHit);
 
-  // Menu items
   const LABELS = navLabels();
   E.labels = LABELS;
   E.items = LABELS.map((label, i) => {
-    const t = T(label, { font: F_MED, size: narrow ? 0.16 : 0.13, ls: 0.2, ax: 'right', ay: 'middle', hud: true,
+    const t = T(label, { font: F_MED, size: compact ? Z.item : Z.menu, ls: 0.2, ax: 'right', ay: 'middle', hud: true,
       color: COL.muted, onSync: relayout });
     const hit = HitPlane();
     const e = addHit(hit, 'hud', () => go(i), (v) => {
       t.color = new THREE.Color(COL.muted).lerp(new THREE.Color(i === current ? COL.mint : COL.text), Math.max(v, i === current ? 1 : 0));
-    }, () => !narrow || menuOpen);
+    }, menuVisible);
     e.forceApply = true;
     hud.add(t, hit);
     return { t, hit };
   });
 
-  E.bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.012), new THREE.MeshBasicMaterial({ color: COL.mint, depthTest: false, transparent: true }));
+  E.bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 2), hudMat(COL.mint));
   E.bar.renderOrder = 1001;
   hud.add(E.bar);
 
-  if (narrow) {
-    E.toggle = T(up('nav.menu'), { font: F_MED, size: 0.15, ls: 0.25, ax: 'right', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
+  if (compact) {
+    E.toggle = T(up('nav.menu'), { font: F_MED, size: Z.toggle, ls: 0.25, ax: 'right', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
     E.toggleHit = HitPlane();
     addHit(E.toggleHit, 'hud', () => setMenu(!menuOpen), (v) => { E.toggle.color = v > 0.5 ? COL.mint : COL.text; });
-    E.menuPanel = Panel(2.3, 2.75, { hud: true, radius: 0.18, fill: 0.85 });
-    hud.add(E.menuPanel, E.toggle, E.toggleHit);
+    E.menuPanel = null; // sized in layoutHud
+    // Extra row in the open menu: Instagram + privacy
+    E.mIg = igIcon(16, COL.text, true);
+    E.mIgHit = HitPlane();
+    addHit(E.mIgHit, 'hud', openInstagram, (v) => E.mIg.traverse((o) => o.material?.color.set(v > 0.5 ? COL.mint : COL.text)), () => menuOpen);
+    E.mPrivacy = T(up('footer.privacy'), { font: F_MED, size: 11, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
+    E.mPrivacyHit = HitPlane();
+    addHit(E.mPrivacyHit, 'hud', goPrivacy, (v) => { E.mPrivacy.color = v > 0.5 ? COL.mint : COL.muted; }, () => menuOpen);
+    hud.add(E.mIg, E.mIgHit, E.mPrivacy, E.mPrivacyHit, E.toggle, E.toggleHit);
   } else {
-    // Section progress rail
     E.dots = SECTIONS.map(() => {
-      const d = new THREE.Mesh(new THREE.PlaneGeometry(0.025, 0.28), new THREE.MeshBasicMaterial({ color: COL.muted, depthTest: false, transparent: true, opacity: 0.5 }));
+      const d = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 26), hudMat(COL.muted, 0.5));
       d.renderOrder = 1000;
       hud.add(d);
       return d;
     });
-    E.counter = T('01', { font: F_DISPLAY, size: 0.2, ax: 'right', ay: 'middle', hud: true, color: COL.mint });
-    E.counterTotal = T('/ 04', { font: F_MED, size: 0.1, ax: 'right', ay: 'middle', hud: true, color: COL.muted, ls: 0.1 });
+    E.counter = T('01', { font: F_DISPLAY, size: 19, ax: 'right', ay: 'middle', hud: true, color: COL.mint });
+    E.counterTotal = T('/ 04', { font: F_MED, size: 10, ax: 'right', ay: 'middle', hud: true, color: COL.muted, ls: 0.1 });
     hud.add(E.counter, E.counterTotal);
   }
 
-  E.copy = T(up(narrow ? 'footer.copyrightShort' : 'footer.copyright', { year: YEAR }).replace(' · ', '  ·  '),
-    { font: F_MED, size: 0.085, ls: 0.15, ay: 'bottom', hud: true, color: COL.muted });
-  E.privacy = T(up('footer.privacy'), { font: F_MED, size: 0.085, ls: 0.15, ax: 'right', ay: 'bottom', hud: true, color: COL.muted, onSync: relayout });
-  E.privacyHit = HitPlane();
-  addHit(E.privacyHit, 'hud', () => { location.href = `privacy.html${location.search}`; }, (v) => { E.privacy.color = v > 0.5 ? COL.mint : COL.muted; });
-  E.hint = T(up(narrow ? 'home.hintSwipe' : 'home.hintScroll'), { font: F_MED, size: 0.08, ls: 0.35, ax: 'center', ay: 'bottom', hud: true, color: COL.text });
-  hud.add(E.copy, E.privacy, E.privacyHit, E.hint);
-
-  // Instagram: icon (+ label on wide screens) to the left of the privacy link
-  E.igIcon = igIcon(narrow ? 0.13 : 0.11, COL.muted, true);
-  E.igText = narrow ? null : T(up('footer.instagram'), { font: F_MED, size: 0.085, ls: 0.15, ax: 'right', ay: 'bottom', hud: true, color: COL.muted, onSync: relayout });
+  // Footer
+  const short = m === 'phone';
+  const shortCopy = short || innerWidth < 900;
+  E.copy = T(up(shortCopy ? 'footer.copyrightShort' : 'footer.copyright', { year: YEAR }).replace(' · ', '  ·  '),
+    { font: F_MED, size: Z.foot, ls: 0.15, ay: 'middle', hud: true, color: COL.muted });
+  hud.add(E.copy);
+  E.igIcon = igIcon(Z.foot * 1.45, COL.muted, true);
   E.igHit = HitPlane();
   addHit(E.igHit, 'hud', openInstagram, (v) => {
     const c = v > 0.5 ? COL.mint : COL.muted;
@@ -831,7 +981,22 @@ function buildHud(narrow) {
     if (E.igText) E.igText.color = c;
   });
   hud.add(E.igIcon, E.igHit);
-  if (E.igText) hud.add(E.igText);
+  if (!short) {
+    E.igText = T(up('footer.instagram'), { font: F_MED, size: Z.foot, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
+    E.privacy = T(up('footer.privacy'), { font: F_MED, size: Z.foot, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
+    E.privacyHit = HitPlane();
+    addHit(E.privacyHit, 'hud', goPrivacy, (v) => { E.privacy.color = v > 0.5 ? COL.mint : COL.muted; });
+    hud.add(E.igText, E.privacy, E.privacyHit);
+  }
+  E.hint = T(up(compact ? 'home.hintSwipe' : 'home.hintScroll'), { font: F_MED, size: Z.hint, ls: 0.35, ax: 'center', ay: 'middle', hud: true, color: COL.text });
+  hud.add(E.hint);
+
+  E.dim = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: COL.dark, transparent: true, opacity: 0.6, depthTest: false, depthWrite: false }));
+  E.dim.renderOrder = 998.5;
+  hud.add(E.dim);
+  E.fadeTop = fadeBand(true);
+  E.fadeBottom = fadeBand(false);
+  hud.add(E.fadeTop, E.fadeBottom);
 
   hudEls = E;
   layoutHud();
@@ -842,102 +1007,145 @@ function setMenu(open) {
   layoutHud();
 }
 
+// Soft dark fades behind the header and footer so scrolled content slides under them.
+function fadeBand(fromTop) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
+    uniforms: { uTop: { value: fromTop ? 1 : 0 } },
+    vertexShader: panelVS,
+    fragmentShader: `uniform float uTop; varying vec2 vUv;
+      void main() { float k = uTop > 0.5 ? vUv.y : 1.0 - vUv.y; gl_FragColor = vec4(0.02, 0.03, 0.086, smoothstep(0.0, 1.0, k) * 0.92); }`,
+    transparent: true, depthTest: false, depthWrite: false,
+  }));
+  m.renderOrder = 998;
+  return m;
+}
+
+const placeHit = (hit, cx, cy, w, h) => { hit.scale.set(w, h, 1); hit.position.set(cx, cy, 0); };
+
 function layoutHud() {
   const E = hudEls;
   if (!E) return;
-  const hh = 2 * HUD_Z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const hw = hh * camera.aspect;
-  const m = Math.min(0.32, hw * 0.06);
-  const top = hh / 2 - m - 0.08;
+  hud.scale.setScalar(hudUnitsPerPx());
+  const { Z } = E;
+  const hw = innerWidth;
+  const hh = innerHeight;
+  const m = Z.m;
+  const top = hh / 2 - HUD_TOP / 2;
   const left = -hw / 2 + m;
   const right = hw / 2 - m;
+  const bottom = -hh / 2 + Math.min(E.compact ? 22 : 26, HUD_BOTTOM / 2);
 
-  E.star.position.set(left + 0.13, top, 0);
-  E.brand.position.set(left + 0.36, top, 0);
-  const bw = textWidth(E.brand, 1.1);
-  E.brandHit.scale.set(bw + 0.6, 0.45, 1);
-  E.brandHit.position.set(left + (bw + 0.36) / 2, top, 0);
+  // Brand
+  E.star.position.set(left + Z.star / 2, top, 0);
+  E.brand.position.set(left + Z.star + 10, top, 0);
+  const bw = textWidth(E.brand, Z.brand * 6);
+  placeHit(E.brandHit, left + (bw + Z.star + 10) / 2, top, bw + Z.star + 30, 44);
 
   const LABELS = E.labels;
-  if (!E.narrow) {
-    // Language pill at the far right, menu to its left
-    E.langPill.position.set(right - 0.26, top, 0);
-    E.lang.position.set(right - 0.26, top, 0);
-    E.langHit.scale.set(0.6, 0.4, 1);
-    E.langHit.position.set(right - 0.26, top, 0);
-    let x = right - 0.52 - 0.5;
+  if (!E.compact) {
+    const pillW = Z.lang * 4.2;
+    E.langPill.position.set(right - pillW / 2, top, 0);
+    E.lang.position.set(right - pillW / 2, top, 0);
+    placeHit(E.langHit, right - pillW / 2, top, pillW + 10, 40);
+    let x = right - pillW - 36;
     for (let i = E.items.length - 1; i >= 0; i--) {
       const { t, hit } = E.items[i];
-      const w = textWidth(t, LABELS[i].length * 0.11);
+      const w = textWidth(t, LABELS[i].length * Z.menu * 0.8);
       t.position.set(x, top, 0);
-      hit.scale.set(w + 0.3, 0.45, 1);
-      hit.position.set(x - w / 2, top, 0);
+      placeHit(hit, x - w / 2, top, w + 24, 44);
       t.userData.w = w;
-      x -= w + 0.45;
+      x -= w + 36;
     }
-    E.dots.forEach((d, i) => d.position.set(right - 0.02, 0.55 - i * 0.37, 0));
-    E.counter.position.set(right - 0.12, -1.0, 0);
-    E.counterTotal.position.set(right - 0.12, -1.25, 0);
+    E.dots.forEach((d, i) => d.position.set(right - 1, 60 - i * 40, 0));
+    E.counter.position.set(right - 8, -100, 0);
+    E.counterTotal.position.set(right - 8, -122, 0);
   } else {
     E.toggle.position.set(right, top, 0);
-    const tw = textWidth(E.toggle, 0.6);
-    E.toggleHit.scale.set(tw + 0.5, 0.5, 1);
-    E.toggleHit.position.set(right - tw / 2, top, 0);
-    // Language pill sits in the last row of the open menu
-    const ly = top - 0.6 - 4 * 0.45;
-    const lx = right - 0.2 - 0.31;
-    E.langPill.position.set(lx, ly, 0);
-    E.lang.position.set(lx, ly, 0);
-    E.langHit.scale.set(0.8, 0.42, 1);
-    E.langHit.position.set(lx, ly, 0);
-    E.langPill.visible = E.lang.visible = E.langHit.visible = menuOpen;
-    E.items.forEach(({ t, hit }, i) => {
-      const y = top - 0.6 - i * 0.45;
-      const w = textWidth(t, LABELS[i].length * 0.13);
-      t.position.set(right - 0.2, y, 0);
-      t.visible = menuOpen;
-      hit.visible = menuOpen;
-      hit.scale.set(2.1, 0.42, 1);
-      hit.position.set(right - 1.05, y, 0);
-      t.userData.w = w;
-    });
-    E.menuPanel.visible = menuOpen;
-    E.menuPanel.position.set(right - 1.05, top - 1.5, -0.01);
+    const tw = textWidth(E.toggle, 50);
+    placeHit(E.toggleHit, right - tw / 2, top, tw + 40, 48);
     const label = up(menuOpen ? 'nav.close' : 'nav.menu');
     if (E.toggle.text !== label) E.toggle.text = label;
+
+    // Drop-down menu panel under the toggle
+    const pw = Math.min(hw - m * 2, 320);
+    const row = Math.min(Z.item * 2.5, (hh - 160) / 6);
+    const ph = 24 + row * 4 + 104;
+    const pTop = top - 28;
+    const pRight = right;
+    if (!E.menuPanel || E.menuPanel.userData.w !== pw || E.menuPanel.userData.h !== ph) {
+      if (E.menuPanel) { hud.remove(E.menuPanel); E.menuPanel.geometry.dispose(); E.menuPanel.material.dispose(); }
+      E.menuPanel = Panel(pw, ph, { hud: true, unit: 100, radius: 18, fill: 0.97 });
+      E.menuPanel.userData.w = pw;
+      E.menuPanel.userData.h = ph;
+      hud.add(E.menuPanel);
+    }
+    E.menuPanel.visible = menuOpen;
+    E.menuPanel.position.set(pRight - pw / 2, pTop - ph / 2, -0.01);
+    E.items.forEach(({ t, hit }, i) => {
+      const y = pTop - 24 - row * (i + 0.5);
+      t.position.set(pRight - 26, y, 0);
+      t.visible = hit.visible = menuOpen;
+      placeHit(hit, pRight - pw / 2, y, pw, row);
+      t.userData.w = textWidth(t, LABELS[i].length * Z.item * 0.8);
+    });
+    const yb = pTop - 24 - row * 4 - 26;
+    const pillW = Z.lang * 4.2;
+    const pl = pRight - pw + 26 + pillW / 2;
+    E.langPill.position.set(pl, yb, 0);
+    E.lang.position.set(pl, yb, 0);
+    placeHit(E.langHit, pl, yb, pillW + 16, 44);
+    const yp = yb - 44;
+    E.mPrivacy.position.set(pRight - 26, yp, 0);
+    const mpw = textWidth(E.mPrivacy, 160);
+    placeHit(E.mPrivacyHit, pRight - 26 - mpw / 2, yp, mpw + 20, 40);
+    const igx = pl + pillW / 2 + 30;
+    E.mIg.position.set(igx, yb, 0);
+    placeHit(E.mIgHit, igx, yb, 44, 44);
+    [E.langPill, E.lang, E.langHit, E.mIg, E.mIgHit, E.mPrivacy, E.mPrivacyHit].forEach((o) => { o.visible = menuOpen; });
   }
 
-  const bottom = -hh / 2 + m;
+  E.dim.scale.set(hw, hh, 1);
+  E.dim.position.set(0, 0, -0.015);
+  E.dim.visible = E.compact && menuOpen;
+
+  // Header/footer fades
+  E.fadeTop.scale.set(hw, HUD_TOP * 1.15, 1);
+  E.fadeTop.position.set(0, hh / 2 - HUD_TOP * 0.575, -0.02);
+  E.fadeBottom.scale.set(hw, HUD_BOTTOM * 1.1, 1);
+  E.fadeBottom.position.set(0, -hh / 2 + HUD_BOTTOM * 0.55, -0.02);
+
+  // Footer
   E.copy.position.set(left, bottom, 0);
-  E.privacy.position.set(right, bottom, 0);
-  const pw = textWidth(E.privacy, 1.2);
-  E.privacyHit.scale.set(pw + 0.3, 0.35, 1);
-  E.privacyHit.position.set(right - pw / 2, bottom + 0.05, 0);
-  let ix = right - pw - 0.4;
-  if (E.igText) {
-    const iw = textWidth(E.igText, 0.7);
-    E.igText.position.set(ix, bottom, 0);
-    ix -= iw + 0.12;
+  const isz = Z.foot * 1.45;
+  let x = right;
+  if (E.privacy) {
+    const pw = textWidth(E.privacy, 140);
+    E.privacy.position.set(x, bottom, 0);
+    placeHit(E.privacyHit, x - pw / 2, bottom, pw + 16, 36);
+    x -= pw + 28;
+    const iw = textWidth(E.igText, 70);
+    E.igText.position.set(x, bottom, 0);
+    E.igIcon.position.set(x - iw - 8 - isz / 2, bottom, 0);
+    placeHit(E.igHit, x - (iw + 8 + isz) / 2, bottom, iw + isz + 24, 36);
+  } else {
+    E.igIcon.position.set(x - isz / 2, bottom, 0);
+    placeHit(E.igHit, x - isz / 2, bottom, 44, 44);
   }
-  const isz = E.narrow ? 0.13 : 0.11;
-  E.igIcon.position.set(ix - isz / 2, bottom + (E.narrow ? 0.065 : 0.045), 0);
-  const igLeft = ix - isz;
-  E.igHit.scale.set(right - pw - 0.4 - igLeft + 0.2, 0.35, 1);
-  E.igHit.position.set((right - pw - 0.4 + igLeft) / 2, bottom + 0.05, 0);
-  E.hint.position.set(0, bottom + (E.narrow ? 0.3 : 0), 0);
+  E.hint.position.set(0, bottom + (E.compact ? 26 : 0), 0);
   updateHudActive();
 }
 
 function updateHudActive() {
   const E = hudEls;
-  if (!E) return;
+  if (!E || current < 0) return;
   E.items.forEach(({ t }, i) => { t.color = i === current ? COL.mint : COL.muted; });
   const a = E.items[current].t;
-  E.barTarget = E.narrow
-    ? { x: a.position.x + 0.1, y: a.position.y, w: 0.06 }
-    : { x: a.position.x - (a.userData.w ?? 0.5) / 2, y: a.position.y - 0.17, w: a.userData.w ?? 0.5 };
-  E.bar.visible = !E.narrow || menuOpen;
-  if (!E.narrow) {
+  const w = a.userData.w ?? 50;
+  E.barTarget = E.compact
+    ? { x: a.position.x + 12, y: a.position.y, w: 6 }
+    : { x: a.position.x - w / 2, y: a.position.y - 15, w };
+  E.bar.visible = !E.compact || menuOpen;
+  if (!E.compact) {
     E.dots.forEach((d, i) => {
       d.material.color.set(i === current ? COL.mint : COL.muted);
       d.material.opacity = i === current ? 1 : 0.4;
@@ -949,103 +1157,181 @@ function updateHudActive() {
 }
 
 // ---------------------------------------------------------------------------
-// Camera navigation
+// Camera: each section has a pose; sections taller than the screen scroll.
 // ---------------------------------------------------------------------------
 let current = 0;
 let transition = null;
 const base = { p: new V3(), q: new THREE.Quaternion() };
-const fov2 = () => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+let scroll = 0;
+let scrollTarget = 0;
+let scrollVel = 0;
 
-function poseFor(i) {
-  const g = sections[SECTIONS[i]];
-  const b = g.userData.bounds;
-  const dist = Math.max((b.h * 1.2) / (2 * fov2()), (b.w * 1.1) / (2 * fov2() * camera.aspect), 9);
-  const p = g.localToWorld(new V3(b.cx, b.cy, dist));
-  return { p, q: g.quaternion.clone(), dist };
+const camDist = () => innerHeight / (2 * fov2() * S);
+
+function sectionMetrics(i) {
+  const b = sections[SECTIONS[i]].userData.bounds;
+  const H = b.top - b.bottom;
+  const vis = innerHeight / S;
+  const topU = HUD_TOP / S;
+  const botU = HUD_BOTTOM / S;
+  const usable = vis - topU - botU;
+  if (H <= usable) return { max: 0, cy0: (b.top + b.bottom) / 2 + (topU - botU) / 2, cx: b.cx ?? 0 };
+  return { max: H - usable, cy0: b.top + topU - vis / 2, cx: b.cx ?? 0 };
 }
 
-function go(i, instant = false) {
+function poseFor(i, s = 0) {
+  const g = sections[SECTIONS[i]];
+  const mt = sectionMetrics(i);
+  const p = g.localToWorld(new V3(mt.cx, mt.cy0 - s, camDist()));
+  return { p, q: g.quaternion.clone() };
+}
+
+function go(i, opts = {}) {
   if (i < 0 || i >= SECTIONS.length) return;
-  if (i === current && !transition && !instant) { setMenu(false); return; }
+  if (i === current && !transition && !opts.instant) { setMenu(false); return; }
+  const prev = current;
   current = i;
-  const to = poseFor(i);
-  if (instant) { base.p.copy(to.p); base.q.copy(to.q); transition = null; }
-  else transition = { from: { p: base.p.clone(), q: base.q.clone() }, to, t0: performance.now(), dur: reduceMotion ? 300 : 1900 };
-  if (hudEls?.narrow) setMenu(false); else updateHudActive();
+  if (!opts.keepScroll) {
+    scroll = scrollTarget = opts.end ? sectionMetrics(i).max : 0;
+  }
+  scrollVel = 0;
+  const to = poseFor(i, scroll);
+  if (opts.instant) { base.p.copy(to.p); base.q.copy(to.q); transition = null; }
+  else transition = { from: { p: base.p.clone(), q: base.q.clone() }, to, t0: performance.now(), dur: reduceMotion ? 300 : (prev < 0 ? 2400 : 1700) };
+  if (hudEls?.compact && menuOpen) setMenu(false); else updateHudActive();
   history.replaceState(null, '', i ? `#${SECTIONS[i]}` : location.pathname + location.search);
 }
 
 const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 
 // ---------------------------------------------------------------------------
-// Input
+// Input: mouse hover/click, touch drag-to-scroll + swipe between sections,
+// wheel, keyboard and the accessible HTML links.
 // ---------------------------------------------------------------------------
 const pointer = new THREE.Vector2(9, 9);
 const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
 const raycaster = new THREE.Raycaster();
 let hovered = null;
 let down = null;
+let drag = null;
+const SWIPE_PX = 70;
 
 function activeHits() {
-  return hits.filter((e) => (e.owner === 'hud' || (e.owner === SECTIONS[current] && !transition)) && (!e.enabled || e.enabled()));
+  return hits.filter((e) => (e.owner === 'hud' || (e.owner === SECTIONS[current] && !transition && !(menuOpen && hudEls?.compact)))
+    && (!e.enabled || e.enabled()));
 }
 function pick(ndc) {
   raycaster.setFromCamera(ndc, camera);
   const list = activeHits();
   const res = raycaster.intersectObjects(list.map((e) => e.mesh), false);
   if (!res.length) return null;
-  // HUD wins over world
   const hudHit = res.find((r) => list.find((e) => e.mesh === r.object)?.owner === 'hud');
   const obj = (hudHit || res[0]).object;
   return list.find((e) => e.mesh === obj) || null;
 }
 const toNdc = (e) => new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+const rubber = (raw, max) => (raw < 0 ? raw * 0.35 : raw > max ? max + (raw - max) * 0.35 : raw);
 
-canvas.addEventListener('pointermove', (e) => {
-  pointer.copy(toNdc(e));
-  if (e.pointerType === 'mouse') {
-    mouse.tx = (e.clientX / innerWidth) * 2 - 1;
-    mouse.ty = (e.clientY / innerHeight) * 2 - 1;
+canvas.addEventListener('pointerdown', (e) => {
+  down = { x: e.clientX, y: e.clientY, type: e.pointerType };
+  if (e.pointerType !== 'mouse') {
+    drag = { y0: e.clientY, s0: scrollTarget, lastY: e.clientY, lastT: performance.now(), v: 0, moved: false };
   }
 });
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'mouse') {
+    pointer.copy(toNdc(e));
+    mouse.tx = (e.clientX / innerWidth) * 2 - 1;
+    mouse.ty = (e.clientY / innerHeight) * 2 - 1;
+    return;
+  }
+  if (!drag || transition) return;
+  const dy = e.clientY - drag.y0;
+  if (Math.abs(dy) > 8) drag.moved = true;
+  if (!drag.moved) return;
+  const max = sectionMetrics(current).max;
+  scrollTarget = rubber(drag.s0 - dy / S, max);
+  scroll = scrollTarget;
+  const now = performance.now();
+  const dt = (now - drag.lastT) / 1000;
+  if (dt > 0) drag.v = 0.7 * drag.v + 0.3 * (-(e.clientY - drag.lastY) / S / dt);
+  drag.lastY = e.clientY;
+  drag.lastT = now;
+});
 canvas.addEventListener('pointerleave', () => pointer.set(9, 9));
-canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, type: e.pointerType }; });
+canvas.addEventListener('pointercancel', () => { drag = null; down = null; });
 canvas.addEventListener('pointerup', (e) => {
   if (!down) return;
   const dx = e.clientX - down.x;
   const dy = e.clientY - down.y;
-  const wasTouch = down.type !== 'mouse';
+  const isTouch = down.type !== 'mouse';
   down = null;
-  if (wasTouch && Math.abs(dy) > 50 && Math.abs(dy) > Math.abs(dx)) {
-    if (!transition) go(current + (dy < 0 ? 1 : -1));
+  if (isTouch && drag?.moved) {
+    const max = sectionMetrics(current).max;
+    const raw = drag.s0 - dy / S;
+    const drag0 = drag.s0;
+    const v = drag.v;
+    drag = null;
+    if (transition) return;
+    // Change section only when the swipe *started* at that edge, like native
+    // scroll views: one swipe reaches the end, the next one moves on.
+    const startTop = drag0 <= 0.01;
+    const startEnd = drag0 >= max - 0.01;
+    if (startTop && raw < 0 && -raw * S > SWIPE_PX) go(current - 1, { end: true });
+    else if (startEnd && raw > max && (raw - max) * S > SWIPE_PX) go(current + 1);
+    else scrollVel = clamp(v, -60, 60);
     return;
   }
-  if (Math.hypot(dx, dy) < 10) {
+  drag = null;
+  if (Math.hypot(dx, dy) < 12) {
     const hit = pick(toNdc(e));
     if (hit?.onClick) hit.onClick();
     else if (menuOpen) setMenu(false);
   }
+  if (isTouch) pointer.set(9, 9);
 });
 
 let wheelAcc = 0;
 let wheelLock = 0;
+let lastWheelScroll = 0;
 window.addEventListener('wheel', (e) => {
   if (document.body.classList.contains('fallback')) return;
   e.preventDefault();
   const now = performance.now();
   if (transition || now < wheelLock) return;
+  const dir = Math.sign(e.deltaY);
+  const max = sectionMetrics(current).max;
+  if (max > 0 && dir !== 0) {
+    const atEdge = dir > 0 ? scrollTarget >= max - 0.01 : scrollTarget <= 0.01;
+    if (!atEdge) {
+      scrollTarget = clamp(scrollTarget + e.deltaY / S, 0, max);
+      scrollVel = 0;
+      lastWheelScroll = now;
+      wheelAcc = 0;
+      return;
+    }
+    if (now - lastWheelScroll < 450) return; // pause at the edge before leaving the section
+  }
   wheelAcc += e.deltaY;
   if (Math.abs(wheelAcc) > 40) {
-    go(current + Math.sign(wheelAcc));
+    go(current + Math.sign(wheelAcc), { end: wheelAcc < 0 });
     wheelAcc = 0;
     wheelLock = now + 500;
   }
 }, { passive: false });
 
+function scrollOrGo(dir) {
+  const max = sectionMetrics(current).max;
+  const atEdge = dir > 0 ? scrollTarget >= max - 0.01 : scrollTarget <= 0.01;
+  if (max > 0 && !atEdge) scrollTarget = clamp(scrollTarget + (dir * 120) / S, 0, max);
+  else go(current + dir, { end: dir < 0 });
+}
 window.addEventListener('keydown', (e) => {
   if (document.body.classList.contains('fallback')) return;
-  if (['ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(current + 1); }
-  else if (['ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); go(current - 1); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); scrollOrGo(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); scrollOrGo(-1); }
+  else if (['PageDown', ' '].includes(e.key)) { e.preventDefault(); go(current + 1); }
+  else if (e.key === 'PageUp') { e.preventDefault(); go(current - 1); }
   else if (e.key === 'Home') go(0);
   else if (e.key === 'End') go(SECTIONS.length - 1);
   else if (e.key === 'Escape') setMenu(false);
@@ -1064,28 +1350,38 @@ document.querySelectorAll('[data-go]').forEach((a) => {
 // ---------------------------------------------------------------------------
 // Resize / layout
 // ---------------------------------------------------------------------------
-let narrowMode = null;
 function resize() {
-  const w = innerWidth;
-  const h = innerHeight;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  const narrow = camera.aspect < 0.95;
-  if (narrow !== narrowMode) {
-    narrowMode = narrow;
-    buildSections(narrow);
-    buildHud(narrow);
+  const m = chooseMode();
+  S = scaleFor(m);
+  // Short screens (phones in landscape) get slimmer header/footer bands.
+  const short = innerHeight < 500;
+  HUD_TOP = short ? 52 : HUD_SZ[m].top;
+  HUD_BOTTOM = short ? 40 : HUD_SZ[m].bottom;
+  if (m !== mode || short !== SHORT) {
+    mode = m;
+    SHORT = short;
+    buildSections(m);
+    buildHud(m);
   } else {
     layoutHud();
   }
-  if (booted && !transition) go(current, true);
+  if (booted && !transition && current >= 0) {
+    scroll = scrollTarget = clamp(scrollTarget, 0, sectionMetrics(current).max);
+    go(current, { instant: true, keepScroll: true });
+  }
 }
+
 // Switching language rebuilds the 3D text in place; the camera stays where it is.
 onLangChange(() => {
-  buildSections(narrowMode);
-  buildHud(narrowMode);
-  if (!transition) go(current, true);
+  buildSections(mode);
+  buildHud(mode);
+  if (!transition && current >= 0) {
+    scroll = scrollTarget = clamp(scrollTarget, 0, sectionMetrics(current).max);
+    go(current, { instant: true, keepScroll: true });
+  }
 });
 
 let resizeTimer;
@@ -1122,7 +1418,6 @@ function frame() {
   uTime.value += reduceMotion ? dt * 0.15 : dt;
   const t = uTime.value;
 
-  // Camera transition
   if (transition) {
     let k = (performance.now() - transition.t0) / transition.dur;
     if (k >= 1) k = 1;
@@ -1135,9 +1430,24 @@ function frame() {
       base.p.add(new V3(0, 0, 1).applyQuaternion(base.q).multiplyScalar(arc * 7));
     }
     if (k === 1) transition = null;
+  } else if (current >= 0) {
+    // In-section scrolling with momentum and a soft spring at the edges
+    const max = sectionMetrics(current).max;
+    if (!drag?.moved) {
+      if (Math.abs(scrollVel) > 0.01) {
+        scrollTarget += scrollVel * dt;
+        scrollVel *= Math.pow(0.03, dt);
+      }
+      const c = clamp(scrollTarget, 0, max);
+      if (c !== scrollTarget) { scrollTarget += (c - scrollTarget) * 0.2; scrollVel *= 0.5; }
+    }
+    scroll += (scrollTarget - scroll) * (drag?.moved ? 1 : 0.2);
+    const p = poseFor(current, scroll);
+    base.p.copy(p.p);
+    base.q.copy(p.q);
   }
 
-  // Parallax
+  // Parallax (mouse only)
   if (!reduceMotion) {
     mouse.x += (mouse.tx - mouse.x) * 0.05;
     mouse.y += (mouse.ty - mouse.y) * 0.05;
@@ -1157,7 +1467,7 @@ function frame() {
   // Section visibility by distance to their camera pose
   SECTIONS.forEach((name, i) => {
     const g = sections[name];
-    const d = base.p.distanceTo(poseFor(i).p);
+    const d = base.p.distanceTo(poseFor(i, i === current ? scroll : 0).p);
     const a = 1 - smooth(d, 3, 26);
     if (Math.abs(a - g.userData.alpha) > 0.003) {
       g.userData.alpha = a;
@@ -1165,19 +1475,18 @@ function frame() {
     }
   });
 
-  // Crystal + icons
   if (crystal) {
-    const { core, w, ring1, ring2 } = crystal.userData;
+    const { core, w, ring1, ring2, baseY } = crystal.userData;
     core.rotation.y = t * 0.4;
     core.rotation.x = Math.sin(t * 0.3) * 0.3;
     w.rotation.copy(core.rotation);
     ring1.rotation.z = t * 0.2;
     ring2.rotation.z = -t * 0.12;
-    crystal.position.y += Math.sin(t * 1.2) * 0.002;
+    crystal.position.y = baseY + Math.sin(t * 1.2) * 0.08;
   }
   icons.forEach((ic) => { ic.rotation.y += dt * 0.6 * ic.userData.spin; ic.rotation.x = Math.sin(t * 0.7) * 0.25; });
 
-  // Hover
+  // Hover (mouse)
   const h = pointer.x < 2 ? pick(pointer) : null;
   if (h !== hovered) {
     if (hovered) hovered.t = 0;
@@ -1191,7 +1500,6 @@ function frame() {
     if (Math.abs(e.h - prev) > 0.0005 || e.forceApply) e.apply?.(e.h);
   }
 
-  // HUD details
   if (hudEls) {
     const E = hudEls;
     if (E.barTarget) {
@@ -1200,7 +1508,8 @@ function frame() {
       E.bar.scale.x += (E.barTarget.w - E.bar.scale.x) * 0.15;
     }
     E.star.rotation.z += dt * 0.3;
-    const hintA = current === 0 && !transition ? 0.35 + 0.35 * Math.sin(t * 2.5) : 0;
+    const showHint = current === 0 && !transition && !menuOpen && !SHORT && sectionMetrics(0).max === 0;
+    const hintA = showHint ? 0.35 + 0.35 * Math.sin(t * 2.5) : 0;
     E.hint.fillOpacity += (hintA - E.hint.fillOpacity) * 0.1;
   }
 

@@ -114,7 +114,7 @@ h1 { font-size: clamp(2.6rem, 8vw, 6rem); line-height: 1.02; font-weight: 700; }
 }
 
 /* ---------- 3D site mode ---------- */
-body.site:not(.fallback) { overflow: hidden; height: 100vh; }
+html:has(body.site:not(.fallback)), body.site:not(.fallback) { overflow: hidden; height: 100%; overscroll-behavior: none; }
 body.site:not(.fallback) #sky { touch-action: none; }
 body.site:not(.fallback) .a11y {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
