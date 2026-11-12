@@ -10,7 +10,6 @@ const F_MED = `${FONTS}/space-grotesk@5.1.0/files/space-grotesk-latin-500-normal
 const F_BODY = `${FONTS}/inter@5.1.0/files/inter-latin-400-normal.woff`;
 
 const COL = { mint: 0x3df5b0, violet: 0x7b6cff, cyan: 0x2bd9ff, text: 0xe8ecff, muted: 0x9aa3c7, dark: 0x050816 };
-const PLAY_URL = 'https://play.google.com/store/search?q=Pianotes&c=apps';
 const EMAIL = 'mailto:info@nordciel.com';
 const SECTIONS = ['home', 'work', 'services', 'contact'];
 const LABELS = ['HOME', 'WORK', 'SERVICES', 'CONTACT'];
@@ -248,7 +247,6 @@ function addHit(mesh, owner, onClick, apply, enabled) {
   hits.push(e);
   return e;
 }
-const openUrl = (u) => window.open(u, '_blank', 'noopener');
 const mail = () => { window.location.href = EMAIL; };
 
 function Button(label, o) {
@@ -354,7 +352,7 @@ function sectionHeader(g, num, label, o) {
 }
 
 const WORK = [
-  { num: '01', title: 'Pianotes', body: 'A music app for learning and practising piano notes.', footer: 'GOOGLE PLAY  >', icon: 'piano', onClick: () => openUrl(PLAY_URL) },
+  { num: '01', title: 'Pianotes', body: 'A music app for learning and practising piano notes.', footer: 'COMING SOON', footerColor: COL.violet, icon: 'piano' },
   { num: '02', title: 'Games', body: 'New games and experiences on mobile and Roblox. Coming soon.', footer: 'IN DEVELOPMENT', footerColor: COL.violet, icon: 'gem' },
   { num: '03', title: 'More apps', body: 'Small, focused tools that are a pleasure to use.', footer: 'COMING SOON', footerColor: COL.violet, icon: 'ring' },
 ];
