@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nordciel — Software under the northern sky</title>
-  <meta name="description" content="Nordciel is a Canadian studio making apps, games and custom software." />
+  <title data-i18n="meta.title">Nordciel — Software under the northern sky</title>
+  <meta name="description" content="Nordciel is a Canadian studio making apps, games and custom software." data-i18n-attr="content:meta.description" />
   <meta property="og:title" content="Nordciel" />
-  <meta property="og:description" content="Apps, games and software — made in Canada, under the northern sky." />
+  <meta property="og:description" content="Apps, games and software — made in Canada, under the northern sky." data-i18n-attr="content:meta.ogDescription" />
+  <link rel="alternate" hreflang="en" href="https://nordciel.com/" />
+  <link rel="alternate" hreflang="fr" href="https://nordciel.com/?lang=fr" />
+  <link rel="alternate" hreflang="x-default" href="https://nordciel.com/" />
   <meta name="theme-color" content="#050816" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -32,66 +35,70 @@
   </div>
 
   <!-- Semantic content: read by screen readers and search engines, and shown
-       as a normal page when WebGL is unavailable. The 3D scene mirrors it. -->
+       as a normal page when WebGL is unavailable. The 3D scene mirrors it.
+       Text comes from locales/<lang>.json via data-i18n keys. -->
   <div class="a11y">
     <header class="nav">
       <a class="brand" href="#top" data-go="0"><span class="brand-mark">✦</span> Nordciel</a>
       <nav aria-label="Main">
-        <a href="#work" data-go="1">Work</a>
-        <a href="#services" data-go="2">Services</a>
-        <a href="#contact" data-go="3">Contact</a>
+        <a href="#work" data-go="1" data-i18n="nav.work">Work</a>
+        <a href="#services" data-go="2" data-i18n="nav.services">Services</a>
+        <a href="#contact" data-go="3" data-i18n="nav.contact">Contact</a>
+        <a href="?lang=fr" data-lang-switch>FR</a>
       </nav>
     </header>
 
     <main id="top">
       <section class="hero">
-        <p class="eyebrow">Canadian software studio</p>
-        <h1>Nordciel<br /><span class="glow">Software under the northern sky.</span></h1>
-        <p class="lead">Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.</p>
+        <p class="eyebrow" data-i18n="home.eyebrow">Canadian software studio</p>
+        <h1>Nordciel<br /><span class="glow" data-i18n="home.tagline">Software under the northern sky.</span></h1>
+        <p class="lead" data-i18n="home.lead">Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.</p>
         <div class="cta">
-          <a class="btn primary" href="#work" data-go="1">See our work</a>
+          <a class="btn primary" href="#work" data-go="1" data-i18n="home.ctaWork">See our work</a>
           <a class="btn ghost" href="mailto:info@nordciel.com">info@nordciel.com</a>
         </div>
       </section>
 
       <section id="work" class="section">
-        <h2>Work</h2>
+        <h2 data-i18n="work.title">Work</h2>
         <div class="cards">
           <article class="card">
-            <h3>Pianotes</h3>
-            <p>A music app for learning and practising piano notes.</p>
-            <span class="tag">Coming soon</span>
+            <h3 data-i18n="work.items.0.title">Pianotes</h3>
+            <p data-i18n="work.items.0.body">A music app for learning and practising piano notes.</p>
+            <span class="tag" data-i18n="work.items.0.status">Coming soon</span>
           </article>
           <article class="card">
-            <h3>Games</h3>
-            <p>New games and experiences on mobile and Roblox. Coming soon.</p>
+            <h3 data-i18n="work.items.1.title">Games</h3>
+            <p data-i18n="work.items.1.body">New games and experiences on mobile and Roblox. Coming soon.</p>
+            <span class="tag" data-i18n="work.items.1.status">In development</span>
           </article>
           <article class="card">
-            <h3>More apps</h3>
-            <p>Small, focused tools that are a pleasure to use.</p>
+            <h3 data-i18n="work.items.2.title">More apps</h3>
+            <p data-i18n="work.items.2.body">Small, focused tools that are a pleasure to use.</p>
+            <span class="tag" data-i18n="work.items.2.status">Coming soon</span>
           </article>
         </div>
       </section>
 
       <section id="services" class="section">
-        <h2>Services</h2>
+        <h2 data-i18n="services.title">Services</h2>
         <div class="cards">
-          <article class="card"><h3>Mobile &amp; web apps</h3><p>From idea to store listing: design, development and launch on Android, iOS and the web.</p></article>
-          <article class="card"><h3>Games &amp; 3D</h3><p>Playful experiences, prototypes and real-time 3D for the web and mobile.</p></article>
-          <article class="card"><h3>Custom software</h3><p>Reliable tools and integrations built around how your business actually works.</p></article>
+          <article class="card"><h3 data-i18n="services.items.0.title">Mobile &amp; web apps</h3><p data-i18n="services.items.0.body">From idea to store listing: design, development and launch on Android, iOS and the web.</p></article>
+          <article class="card"><h3 data-i18n="services.items.1.title">Games &amp; 3D</h3><p data-i18n="services.items.1.body">Playful experiences, prototypes and real-time 3D for the web and mobile.</p></article>
+          <article class="card"><h3 data-i18n="services.items.2.title">Custom software</h3><p data-i18n="services.items.2.body">Reliable tools and integrations built around how your business actually works.</p></article>
         </div>
       </section>
 
       <section id="contact" class="section contact">
-        <h2>Let's build something.</h2>
-        <p class="lead">Have a project, a question, or feedback on one of our apps?</p>
+        <h2 data-i18n="contact.title">Let's build something.</h2>
+        <p class="lead" data-i18n="contact.lead">Have a project, a question, or feedback on one of our apps?</p>
         <a class="btn primary big" href="mailto:info@nordciel.com">info@nordciel.com</a>
       </section>
     </main>
 
     <footer class="footer">
-      <span>© 2026 Nordciel · Ontario, Canada</span>
-      <a href="privacy.html">Privacy policy</a>
+      <span data-i18n="footer.copyright">© 2026 Nordciel · Ontario, Canada</span>
+      <a href="privacy.html" data-i18n="footer.privacy">Privacy policy</a>
     </footer>
   </div>
 

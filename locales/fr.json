@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "Nordciel — Des logiciels sous le ciel du Nord",
+    "description": "Nordciel est un studio canadien qui crée des applications, des jeux et des logiciels sur mesure.",
+    "ogDescription": "Applications, jeux et logiciels — conçus au Canada, sous le ciel du Nord."
+  },
+  "nav": {
+    "home": "Accueil",
+    "work": "Projets",
+    "services": "Services",
+    "contact": "Contact",
+    "menu": "Menu",
+    "close": "Fermer"
+  },
+  "home": {
+    "eyebrow": "Studio logiciel canadien",
+    "tagline": "Des logiciels sous le ciel du Nord.",
+    "lead": "Nordciel conçoit des applications, des jeux et des logiciels sur mesure, avec soin, en Ontario, au Canada.",
+    "ctaWork": "Voir nos projets",
+    "hintScroll": "Défilez pour explorer",
+    "hintSwipe": "Balayez pour explorer"
+  },
+  "work": {
+    "title": "Projets",
+    "items": [
+      { "title": "Pianotes", "body": "Une application musicale pour apprendre et pratiquer les notes au piano.", "status": "Bientôt disponible" },
+      { "title": "Jeux", "body": "De nouveaux jeux et expériences sur mobile et Roblox. Bientôt disponibles.", "status": "En développement" },
+      { "title": "Autres applis", "body": "Des outils simples et ciblés, agréables à utiliser.", "status": "Bientôt disponible" }
+    ]
+  },
+  "services": {
+    "title": "Services",
+    "items": [
+      { "title": "Applis mobiles et web", "body": "De l'idée à la publication : conception, développement et lancement sur Android, iOS et le Web." },
+      { "title": "Jeux et 3D", "body": "Des expériences ludiques, des prototypes et de la 3D en temps réel pour le Web et le mobile." },
+      { "title": "Logiciels sur mesure", "body": "Des outils et des intégrations fiables, conçus autour du fonctionnement réel de votre entreprise." }
+    ]
+  },
+  "contact": {
+    "label": "Contact",
+    "title": "Construisons quelque chose.",
+    "lead": "Un projet, une question ou un commentaire sur l'une de nos applications ?"
+  },
+  "footer": {
+    "copyright": "© {year} Nordciel · Ontario, Canada",
+    "copyrightShort": "© {year} Nordciel",
+    "privacy": "Politique de confidentialité"
+  },
+  "privacy": {
+    "metaTitle": "Politique de confidentialité — Nordciel",
+    "title": "Politique de confidentialité",
+    "updated": "Dernière mise à jour : 12 novembre 2026",
+    "home": "Accueil",
+    "whoTitle": "Qui sommes-nous",
+    "who": "Nordciel (« nous ») est un studio logiciel établi en Ontario, au Canada, qui publie des applications et des jeux, dont Pianotes. Vous pouvez nous joindre à info@nordciel.com.",
+    "collectTitle": "Renseignements recueillis",
+    "collect": "Nos applications sont conçues pour recueillir le moins de renseignements possible. Sauf indication contraire dans la fiche de l'application :",
+    "collect1": "Aucun compte n'est requis et nous ne recueillons ni votre nom, ni votre courriel, ni vos contacts.",
+    "collect2": "Les paramètres et la progression sont enregistrés sur votre appareil.",
+    "collect3": "Les boutiques d'applications (Google Play, App Store d'Apple, Roblox) peuvent recueillir des données de diagnostic et d'achat selon leurs propres politiques de confidentialité.",
+    "thirdTitle": "Services tiers",
+    "third": "Lorsqu'une application utilise des services tiers (par exemple d'analyse, de rapports de plantage ou de publicité), ces services sont indiqués dans la section « Sécurité des données » de la fiche de l'application et sont régis par leurs propres politiques de confidentialité.",
+    "childrenTitle": "Enfants",
+    "children": "Nous ne recueillons pas sciemment de renseignements personnels auprès d'enfants. Si vous croyez qu'un enfant nous a fourni des renseignements personnels, communiquez avec nous et nous les supprimerons.",
+    "rightsTitle": "Vos droits",
+    "rights": "En vertu de la loi canadienne sur la protection des renseignements personnels (LPRPDE), vous pouvez demander quels renseignements personnels nous détenons à votre sujet et demander leur correction ou leur suppression en écrivant à info@nordciel.com.",
+    "changesTitle": "Modifications",
+    "changes": "Nous pouvons mettre à jour cette politique. La version la plus récente sera toujours disponible sur cette page."
+  }
+}

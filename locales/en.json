@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "Nordciel — Software under the northern sky",
+    "description": "Nordciel is a Canadian studio making apps, games and custom software.",
+    "ogDescription": "Apps, games and software — made in Canada, under the northern sky."
+  },
+  "nav": {
+    "home": "Home",
+    "work": "Work",
+    "services": "Services",
+    "contact": "Contact",
+    "menu": "Menu",
+    "close": "Close"
+  },
+  "home": {
+    "eyebrow": "Canadian software studio",
+    "tagline": "Software under the northern sky.",
+    "lead": "Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.",
+    "ctaWork": "See our work",
+    "hintScroll": "Scroll to explore",
+    "hintSwipe": "Swipe to explore"
+  },
+  "work": {
+    "title": "Work",
+    "items": [
+      { "title": "Pianotes", "body": "A music app for learning and practising piano notes.", "status": "Coming soon" },
+      { "title": "Games", "body": "New games and experiences on mobile and Roblox. Coming soon.", "status": "In development" },
+      { "title": "More apps", "body": "Small, focused tools that are a pleasure to use.", "status": "Coming soon" }
+    ]
+  },
+  "services": {
+    "title": "Services",
+    "items": [
+      { "title": "Mobile & web apps", "body": "From idea to store listing: design, development and launch on Android, iOS and the web." },
+      { "title": "Games & 3D", "body": "Playful experiences, prototypes and real-time 3D for the web and mobile." },
+      { "title": "Custom software", "body": "Reliable tools and integrations built around how your business actually works." }
+    ]
+  },
+  "contact": {
+    "label": "Contact",
+    "title": "Let's build something.",
+    "lead": "Have a project, a question, or feedback on one of our apps?"
+  },
+  "footer": {
+    "copyright": "© {year} Nordciel · Ontario, Canada",
+    "copyrightShort": "© {year} Nordciel",
+    "privacy": "Privacy policy"
+  },
+  "privacy": {
+    "metaTitle": "Privacy Policy — Nordciel",
+    "title": "Privacy Policy",
+    "updated": "Last updated: November 12, 2026",
+    "home": "Home",
+    "whoTitle": "Who we are",
+    "who": "Nordciel (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at info@nordciel.com.",
+    "collectTitle": "Information we collect",
+    "collect": "Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:",
+    "collect1": "We do not require an account and do not collect your name, email or contacts.",
+    "collect2": "Settings and progress are stored on your device.",
+    "collect3": "App stores (Google Play, Apple App Store, Roblox) may collect diagnostic and purchase data under their own privacy policies.",
+    "thirdTitle": "Third-party services",
+    "third": "Where an app uses third-party services (for example analytics, crash reporting or ads), those services are listed in the app's store \"Data safety\" section and governed by their own privacy policies.",
+    "childrenTitle": "Children",
+    "children": "We do not knowingly collect personal information from children. If you believe a child has provided us personal information, contact us and we will delete it.",
+    "rightsTitle": "Your rights",
+    "rights": "Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing info@nordciel.com.",
+    "changesTitle": "Changes",
+    "changes": "We may update this policy. The latest version will always be available on this page."
+  }
+}

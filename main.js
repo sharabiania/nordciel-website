@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { Text } from 'troika-three-text';
+import { initI18n, t as tr, getLang, setLang, onLangChange, LANGUAGES } from './i18n.js';
+
+await initI18n();
+const up = (key, params) => String(tr(key, params)).toUpperCase();
 
 // ---------------------------------------------------------------------------
 // Config
@@ -12,7 +16,7 @@ const F_BODY = `${FONTS}/inter@5.1.0/files/inter-latin-400-normal.woff`;
 const COL = { mint: 0x3df5b0, violet: 0x7b6cff, cyan: 0x2bd9ff, text: 0xe8ecff, muted: 0x9aa3c7, dark: 0x050816 };
 const EMAIL = 'mailto:info@nordciel.com';
 const SECTIONS = ['home', 'work', 'services', 'contact'];
-const LABELS = ['HOME', 'WORK', 'SERVICES', 'CONTACT'];
+const navLabels = () => SECTIONS.map((s) => up(`nav.${s}`));
 const YEAR = new Date().getFullYear();
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -79,6 +83,224 @@ const stars = new THREE.Points(starGeo, new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
 }));
 bg.add(stars);
+
+// ---------------------------------------------------------------------------
+// Constellations: every few seconds a handful of nearby stars (as seen on
+// screen) are linked by a minimum spanning tree, drawn line by line, held,
+// then faded out. Lines live in the star field, so they drift with it.
+// ---------------------------------------------------------------------------
+const constellations = [];
+const constellationLayer = new THREE.Group();
+stars.add(constellationLayer);
+
+const nodeMaterial = () => new THREE.ShaderMaterial({
+  uniforms: { uPixelRatio: { value: renderer.getPixelRatio() } },
+  vertexShader: `
+    attribute float aAlpha; uniform float uPixelRatio; varying float vA;
+    void main() {
+      vA = aAlpha;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = 14.0 * uPixelRatio;
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying float vA;
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      float core = smoothstep(0.12, 0.0, d);
+      float halo = smoothstep(0.5, 0.0, d) * 0.35;
+      gl_FragColor = vec4(mix(vec3(0.24, 0.96, 0.69), vec3(1.0), core), (core + halo) * vA);
+    }`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+});
+
+const _w = new V3();
+function screenStars() {
+  // Project every star once; keep those comfortably on screen.
+  stars.updateMatrixWorld();
+  const out = [];
+  for (let i = 0; i < STAR_COUNT; i++) {
+    _w.fromArray(starPos, i * 3).applyMatrix4(stars.matrixWorld).project(camera);
+    if (_w.z < 1 && Math.abs(_w.x) < 0.92 && Math.abs(_w.y) < 0.85) out.push({ i, x: _w.x * camera.aspect, y: _w.y });
+  }
+  return out;
+}
+
+// Screen rectangles (x scaled by aspect) of the text, cards and menu currently
+// on screen, so constellations only form in empty sky.
+const _box = new THREE.Box3();
+const _corner = new V3();
+function contentBoxes() {
+  const boxes = [];
+  const roots = [hud];
+  if (current >= 0) roots.push(sections[SECTIONS[current]]);
+  for (const root of roots) {
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
+      const isPanel = o.isMesh && o.material?.uniforms?.uSize;
+      if (!(o instanceof Text) && !isPanel) return;
+      if (!o.visible) return;
+      _box.setFromObject(o);
+      if (_box.isEmpty()) return;
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let i = 0; i < 8; i++) {
+        _corner.set(i & 1 ? _box.max.x : _box.min.x, i & 2 ? _box.max.y : _box.min.y, i & 4 ? _box.max.z : _box.min.z).project(camera);
+        x0 = Math.min(x0, _corner.x); x1 = Math.max(x1, _corner.x);
+        y0 = Math.min(y0, _corner.y); y1 = Math.max(y1, _corner.y);
+      }
+      boxes.push([x0 * camera.aspect, x1 * camera.aspect, y0, y1]);
+    });
+  }
+  return boxes;
+}
+const PAD = 0.05;
+const inBoxes = (boxes, x, y) => boxes.some(([x0, x1, y0, y1]) => x > x0 - PAD && x < x1 + PAD && y > y0 - PAD && y < y1 + PAD);
+const edgeHitsBoxes = (boxes, a, b) => {
+  for (let k = 1; k < 10; k++) {
+    const f = k / 10;
+    if (inBoxes(boxes, a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)) return true;
+  }
+  return false;
+};
+
+function spawnConstellation() {
+  const used = new Set(constellations.flatMap((c) => c.nodes));
+  const boxes = contentBoxes();
+  const pool = screenStars().filter((s) => !used.has(s.i) && !inBoxes(boxes, s.x, s.y));
+  if (pool.length < 20) return false;
+  // Prefer the sky above/around the content: upper half or the sides.
+  const seeds = pool.filter((s) => starSize[s.i] > 1.2 && (s.y > 0.2 || Math.abs(s.x) > camera.aspect * 0.6));
+  const seed = (seeds.length ? seeds : pool)[Math.floor(Math.random() * (seeds.length || pool.length))];
+  const R = 0.8;
+  const near = pool
+    .map((s) => ({ ...s, d: Math.hypot(s.x - seed.x, s.y - seed.y) }))
+    .filter((s) => s.d < R && s.i !== seed.i)
+    .sort((a, b) => a.d - b.d);
+  // Skip stars crowding an already chosen one, so shapes read clearly.
+  const chosen = [seed];
+  const want = 5 + Math.floor(Math.random() * 4);
+  for (const s of near) {
+    if (chosen.length >= want) break;
+    if (chosen.every((c) => Math.hypot(c.x - s.x, c.y - s.y) > 0.16)
+      && !edgeHitsBoxes(boxes, chosen.reduce((m, c) => (Math.hypot(c.x - s.x, c.y - s.y) < Math.hypot(m.x - s.x, m.y - s.y) ? c : m)), s)) {
+      chosen.push(s);
+    }
+  }
+  if (chosen.length < 4) return false;
+
+  // Prim's MST in screen space, recording draw order from the seed outwards.
+  const n = chosen.length;
+  const inTree = new Array(n).fill(false);
+  inTree[0] = true;
+  const edgesList = [];
+  const dist = (a, b) => Math.hypot(chosen[a].x - chosen[b].x, chosen[a].y - chosen[b].y);
+  const crosses = (a, b) => edgeHitsBoxes(boxes, chosen[a], chosen[b]);
+  for (let k = 1; k < n; k++) {
+    let best = null;
+    for (let a = 0; a < n; a++) if (inTree[a]) for (let b = 0; b < n; b++) if (!inTree[b]) {
+      const d = dist(a, b);
+      if ((!best || d < best.d) && !crosses(a, b)) best = { a, b, d };
+    }
+    if (!best) return false; // can't connect without crossing content; try again soon
+    inTree[best.b] = true;
+    edgesList.push([best.a, best.b]);
+  }
+  // Sometimes close a loop between two nodes, like many real asterisms.
+  if (n >= 5 && Math.random() < 0.4) {
+    const deg = new Array(n).fill(0);
+    edgesList.forEach(([a, b]) => { deg[a]++; deg[b]++; });
+    const leaves = [...deg.keys()].filter((i) => deg[i] === 1);
+    let best = null;
+    for (const a of leaves) for (let b = 0; b < n; b++) {
+      if (a === b || edgesList.some(([x, y]) => (x === a && y === b) || (x === b && y === a))) continue;
+      const d = dist(a, b);
+      if (d < 0.5 && (!best || d < best.d) && !crosses(a, b)) best = { a, b, d };
+    }
+    if (best) edgesList.push([best.a, best.b]);
+  }
+
+  const P = (k) => new V3().fromArray(starPos, chosen[k].i * 3);
+  const linePos = new Float32Array(edgesList.length * 6);
+  const lineCol = new Float32Array(edgesList.length * 6);
+  const cA = new THREE.Color(COL.mint);
+  const cB = new THREE.Color(COL.cyan);
+  edgesList.forEach(([a], e) => {
+    P(a).toArray(linePos, e * 6);
+    P(a).toArray(linePos, e * 6 + 3);
+    cA.toArray(lineCol, e * 6);
+    cB.toArray(lineCol, e * 6 + 3);
+  });
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+  lg.setAttribute('color', new THREE.BufferAttribute(lineCol, 3));
+  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  }));
+
+  const nodePos = new Float32Array(n * 3);
+  chosen.forEach((_, k) => P(k).toArray(nodePos, k * 3));
+  const ng = new THREE.BufferGeometry();
+  ng.setAttribute('position', new THREE.BufferAttribute(nodePos, 3));
+  ng.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(n), 1));
+  const nodes = new THREE.Points(ng, nodeMaterial());
+
+  constellationLayer.add(lines, nodes);
+  const EDGE_STEP = 0.32;
+  const EDGE_DUR = 0.7;
+  constellations.push({
+    nodes: chosen.map((c) => c.i),
+    edges: edgesList,
+    from: edgesList.map(([a]) => P(a)),
+    to: edgesList.map(([, b]) => P(b)),
+    lines, nodesObj: nodes, n,
+    born: uTime.value,
+    drawEnd: (edgesList.length - 1) * EDGE_STEP + EDGE_DUR,
+    EDGE_STEP, EDGE_DUR,
+    hold: 2.6, fade: 1.8,
+  });
+  return true;
+}
+
+let nextConstellation = 1.5;
+function updateConstellations(time) {
+  if (reduceMotion) return;
+  if (transition) {
+    // Clear the sky while flying; start fresh shortly after arriving.
+    constellations.forEach((k) => { k.leaveAt ??= time; });
+    nextConstellation = Math.max(nextConstellation, time + 1.2);
+  } else if (time > nextConstellation) {
+    const ok = constellations.length >= 2 || spawnConstellation();
+    nextConstellation = time + (ok ? 2.4 + Math.random() * 1.6 : 0.25);
+  }
+  const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+  for (let c = constellations.length - 1; c >= 0; c--) {
+    const k = constellations[c];
+    const age = time - k.born;
+    const fadeStart = k.drawEnd + k.hold;
+    let alpha = age < fadeStart ? 1 : Math.max(0, 1 - (age - fadeStart) / k.fade);
+    if (k.leaveAt != null) alpha = Math.min(alpha, Math.max(0, 1 - (time - k.leaveAt) / 0.6));
+    if (alpha <= 0) {
+      constellationLayer.remove(k.lines, k.nodesObj);
+      k.lines.geometry.dispose(); k.lines.material.dispose();
+      k.nodesObj.geometry.dispose(); k.nodesObj.material.dispose();
+      constellations.splice(c, 1);
+      continue;
+    }
+    const pos = k.lines.geometry.attributes.position;
+    const nodeA = k.nodesObj.geometry.attributes.aAlpha;
+    nodeA.array.fill(0);
+    nodeA.array[k.edges[0][0]] = Math.min(1, age / 0.4) * alpha;
+    k.edges.forEach(([, b], e) => {
+      const p = easeOut(THREE.MathUtils.clamp((age - e * k.EDGE_STEP) / k.EDGE_DUR, 0, 1));
+      _w.copy(k.from[e]).lerp(k.to[e], p).toArray(pos.array, e * 6 + 3);
+      // A star lights up as its line arrives
+      nodeA.array[b] = Math.max(nodeA.array[b], p * p * alpha);
+    });
+    pos.needsUpdate = true;
+    nodeA.needsUpdate = true;
+    k.lines.material.opacity = 0.42 * alpha;
+  }
+}
 
 function auroraMaterial(a, b, off) {
   return new THREE.ShaderMaterial({
@@ -150,7 +372,22 @@ function T(str, o = {}) {
   }
   if (o.hud) { t.material = hudTextMaterial(); t.renderOrder = 1000; }
   t.position.set(o.x || 0, o.y || 0, o.z ?? 0.04);
-  const done = () => { o.onSync?.(t); };
+  const done = () => {
+    // Shrink-to-fit: longer translations get a smaller font instead of overflowing.
+    if (o.fit && !t.userData.fitted) {
+      t.userData.fitted = true;
+      const b = t.textRenderInfo?.blockBounds;
+      const w = b ? b[2] - b[0] : 0;
+      if (w > o.fit) {
+        const k = o.fit / w;
+        t.fontSize *= k;
+        if (o.glow != null) t.outlineBlur = t.fontSize * 0.5;
+        t.sync(() => o.onSync?.(t));
+        return;
+      }
+    }
+    o.onSync?.(t);
+  };
   if (!booted) {
     pendingText++;
     t.sync(() => { done(); if (--pendingText === 0) markReady(); });
@@ -274,7 +511,7 @@ function Card(o) {
   const L = -w / 2 + pad;
   const top = h / 2 - pad;
   g.add(T(o.num, { font: F_MED, size: 0.18, color: COL.mint, ls: 0.25, x: L, y: top }));
-  g.add(T(o.title, { font: F_DISPLAY, size: o.compact ? 0.42 : 0.48, x: L, y: top - 0.38 }));
+  g.add(T(o.title, { font: F_DISPLAY, size: o.compact ? 0.42 : 0.48, x: L, y: top - 0.38, fit: w - pad * 2 - 1.4 }));
   g.add(T(o.body, { size: o.compact ? 0.22 : 0.25, color: COL.muted, lh: 1.5, maxWidth: w - pad * 2,
     x: L, y: top - (o.compact ? 0.98 : 1.08) }));
   if (o.footer) {
@@ -348,19 +585,20 @@ function sectionHeader(g, num, label, o) {
   g.add(T(`${num} / ${label.toUpperCase()}`, { font: F_MED, size: o.small ? 0.18 : 0.22, color: COL.mint, ls: 0.3,
     x: o.x, y: o.y, ax: o.ax, align: o.align }));
   g.add(T(label, { font: F_DISPLAY, size: o.size, x: o.x, y: o.y - 0.4, ax: o.ax, align: o.align,
-    glow: COL.cyan, glowA: 0.3, maxWidth: o.maxWidth }));
+    glow: COL.cyan, glowA: 0.3, maxWidth: o.maxWidth, fit: o.fit }));
 }
 
-const WORK = [
-  { num: '01', title: 'Pianotes', body: 'A music app for learning and practising piano notes.', footer: 'COMING SOON', footerColor: COL.violet, icon: 'piano' },
-  { num: '02', title: 'Games', body: 'New games and experiences on mobile and Roblox. Coming soon.', footer: 'IN DEVELOPMENT', footerColor: COL.violet, icon: 'gem' },
-  { num: '03', title: 'More apps', body: 'Small, focused tools that are a pleasure to use.', footer: 'COMING SOON', footerColor: COL.violet, icon: 'ring' },
-];
-const SERVICES = [
-  { num: '01', title: 'Mobile & web apps', body: 'From idea to store listing: design, development and launch on Android, iOS and the web.', icon: 'ico' },
-  { num: '02', title: 'Games & 3D', body: 'Playful experiences, prototypes and real-time 3D for the web and mobile.', icon: 'knot' },
-  { num: '03', title: 'Custom software', body: 'Reliable tools and integrations built around how your business actually works.', icon: 'cube' },
-];
+// Visual config per card; the words come from the locale files (same order).
+const WORK_ICONS = ['piano', 'gem', 'ring'];
+const SERVICE_ICONS = ['ico', 'knot', 'cube'];
+const cardList = (key, icons) => tr(`${key}.items`).map((item, i) => ({
+  num: String(i + 1).padStart(2, '0'),
+  title: item.title,
+  body: item.body,
+  footer: item.status ? item.status.toUpperCase() : null,
+  footerColor: COL.violet,
+  icon: icons[i],
+}));
 
 function buildCards(g, owner, list, narrow) {
   list.forEach((c, i) => {
@@ -391,12 +629,11 @@ function buildSections(narrow) {
   home.add(crystal);
   if (!narrow) {
     const L = -10.5;
-    home.add(T('CANADIAN SOFTWARE STUDIO', { font: F_MED, size: 0.26, color: COL.mint, ls: 0.3, x: L, y: 3.7 }));
+    home.add(T(up('home.eyebrow'), { font: F_MED, size: 0.26, color: COL.mint, ls: 0.3, x: L, y: 3.7 }));
     home.add(T('NORDCIEL', { font: F_DISPLAY, size: 2.7, ls: 0.02, x: L, y: 3.3, glow: COL.cyan, glowA: 0.35 }));
-    home.add(T('Software under the northern sky.', { font: F_MED, size: 0.62, color: COL.mint, x: L, y: 0.3, glow: COL.mint, glowA: 0.25 }));
-    home.add(T('Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.',
-      { size: 0.3, color: COL.muted, lh: 1.55, maxWidth: 9, x: L, y: -0.75 }));
-    const b1 = Button('SEE OUR WORK', { w: 4.2, owner: 'home', primary: true, onClick: () => go(1) });
+    home.add(T(tr('home.tagline'), { font: F_MED, size: 0.62, color: COL.mint, x: L, y: 0.3, glow: COL.mint, glowA: 0.25, fit: 13.2 }));
+    home.add(T(tr('home.lead'), { size: 0.3, color: COL.muted, lh: 1.55, maxWidth: 9, x: L, y: -0.75 }));
+    const b1 = Button(up('home.ctaWork'), { w: 4.2, owner: 'home', primary: true, onClick: () => go(1) });
     b1.position.set(L + 2.1, -2.95, 0);
     const b2 = Button('INFO@NORDCIEL.COM', { w: 5.4, owner: 'home', onClick: mail });
     b2.position.set(L + 4.5 + 2.7, -2.95, 0);
@@ -407,12 +644,11 @@ function buildSections(narrow) {
     const c = { ax: 'center', align: 'center' };
     crystal.position.set(0, 4.5, -1);
     crystal.scale.setScalar(0.55);
-    home.add(T('CANADIAN SOFTWARE STUDIO', { ...c, font: F_MED, size: 0.2, color: COL.mint, ls: 0.3, y: 2.45 }));
+    home.add(T(up('home.eyebrow'), { ...c, font: F_MED, size: 0.2, color: COL.mint, ls: 0.3, y: 2.45, fit: 6.8 }));
     home.add(T('NORDCIEL', { ...c, font: F_DISPLAY, size: 1.35, y: 2.1, glow: COL.cyan, glowA: 0.35 }));
-    home.add(T('Software under the northern sky.', { ...c, font: F_MED, size: 0.4, color: COL.mint, maxWidth: 6.5, y: 0.45 }));
-    home.add(T('Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.',
-      { ...c, size: 0.25, color: COL.muted, lh: 1.55, maxWidth: 6.2, y: -0.35 }));
-    const b1 = Button('SEE OUR WORK', { w: 5.6, h: 0.95, owner: 'home', primary: true, onClick: () => go(1) });
+    home.add(T(tr('home.tagline'), { ...c, font: F_MED, size: 0.4, color: COL.mint, maxWidth: 6.5, y: 0.45 }));
+    home.add(T(tr('home.lead'), { ...c, size: 0.25, color: COL.muted, lh: 1.55, maxWidth: 6.2, y: -0.35 }));
+    const b1 = Button(up('home.ctaWork'), { w: 5.6, h: 0.95, owner: 'home', primary: true, onClick: () => go(1) });
     b1.position.set(0, -2.6, 0);
     const b2 = Button('INFO@NORDCIEL.COM', { w: 5.6, h: 0.95, owner: 'home', onClick: mail });
     b2.position.set(0, -3.8, 0);
@@ -421,8 +657,10 @@ function buildSections(narrow) {
   }
 
   // WORK + SERVICES
-  for (const [name, num, label, list] of [['work', '02', 'Work', WORK], ['services', '03', 'Services', SERVICES]]) {
+  for (const [name, num, icons] of [['work', '02', WORK_ICONS], ['services', '03', SERVICE_ICONS]]) {
     const g = sections[name];
+    const label = tr(`${name}.title`);
+    const list = cardList(name, icons);
     if (!narrow) {
       sectionHeader(g, num, label, { x: -10.2, y: 4.9, size: 1.3 });
       buildCards(g, name, list, false);
@@ -437,23 +675,24 @@ function buildSections(narrow) {
   // CONTACT
   const ct = sections.contact;
   const c = { ax: 'center', align: 'center' };
+  const privacyHref = () => { location.href = `privacy.html${location.search}`; };
   if (!narrow) {
-    ct.add(T('04 / CONTACT', { ...c, font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, y: 3.2 }));
-    ct.add(T("Let's build something.", { ...c, font: F_DISPLAY, size: 1.5, y: 2.7, glow: COL.cyan, glowA: 0.35 }));
-    ct.add(T('Have a project, a question, or feedback on one of our apps?', { ...c, size: 0.34, color: COL.muted, y: 0.4 }));
+    ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, y: 3.2 }));
+    ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 1.5, y: 2.7, glow: COL.cyan, glowA: 0.35, fit: 16 }));
+    ct.add(T(tr('contact.lead'), { ...c, size: 0.34, color: COL.muted, y: 0.4, fit: 16 }));
     const b = Button('INFO@NORDCIEL.COM', { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
     b.position.set(0, -1.4, 0);
-    const p = Button('PRIVACY POLICY', { w: 3.6, h: 0.7, size: 0.17, owner: 'contact', onClick: () => { location.href = 'privacy.html'; } });
+    const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: privacyHref });
     p.position.set(0, -2.9, 0);
     ct.add(b, p);
     ct.userData.bounds = { w: 17, h: 9, cx: 0, cy: 0.1 };
   } else {
-    ct.add(T('04 / CONTACT', { ...c, font: F_MED, size: 0.18, color: COL.mint, ls: 0.3, y: 3.0 }));
-    ct.add(T("Let's build something.", { ...c, font: F_DISPLAY, size: 0.85, maxWidth: 6.4, y: 2.6, glow: COL.cyan, glowA: 0.35 }));
-    ct.add(T('Have a project, a question, or feedback on one of our apps?', { ...c, size: 0.26, maxWidth: 6, color: COL.muted, lh: 1.5, y: 0.5 }));
+    ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.18, color: COL.mint, ls: 0.3, y: 3.0 }));
+    ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 0.85, maxWidth: 6.4, y: 2.6, glow: COL.cyan, glowA: 0.35 }));
+    ct.add(T(tr('contact.lead'), { ...c, size: 0.26, maxWidth: 6, color: COL.muted, lh: 1.5, y: 0.5 }));
     const b = Button('INFO@NORDCIEL.COM', { w: 6.2, h: 1.1, size: 0.3, owner: 'contact', primary: true, onClick: mail });
     b.position.set(0, -1.2, 0);
-    const p = Button('PRIVACY POLICY', { w: 3.4, h: 0.7, size: 0.16, owner: 'contact', onClick: () => { location.href = 'privacy.html'; } });
+    const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.14, owner: 'contact', onClick: privacyHref });
     p.position.set(0, -2.5, 0);
     ct.add(b, p);
     ct.userData.bounds = { w: 7.2, h: 9, cx: 0, cy: 0.2 };
@@ -493,7 +732,20 @@ function buildHud(narrow) {
   addHit(E.brandHit, 'hud', () => go(0), (v) => { E.star.rotation.z = v * Math.PI / 2; });
   hud.add(E.star, E.brand, E.brandHit);
 
+  // Language switch: shows the *other* language (e.g. "FR" while viewing English)
+  const otherLang = Object.keys(LANGUAGES).find((l) => l !== getLang());
+  E.lang = T(otherLang.toUpperCase(), { font: F_MED, size: narrow ? 0.14 : 0.115, ls: 0.15, ax: 'center', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
+  E.langPill = Panel(narrow ? 0.62 : 0.52, narrow ? 0.36 : 0.3, { hud: true, radius: narrow ? 0.18 : 0.15, fill: 0.15 });
+  E.langHit = HitPlane();
+  addHit(E.langHit, 'hud', () => setLang(otherLang), (v) => {
+    E.langPill.material.uniforms.uHover.value = v;
+    E.lang.color = v > 0.5 ? COL.mint : COL.text;
+  }, () => !narrow || menuOpen);
+  hud.add(E.langPill, E.lang, E.langHit);
+
   // Menu items
+  const LABELS = navLabels();
+  E.labels = LABELS;
   E.items = LABELS.map((label, i) => {
     const t = T(label, { font: F_MED, size: narrow ? 0.16 : 0.13, ls: 0.2, ax: 'right', ay: 'middle', hud: true,
       color: COL.muted, onSync: relayout });
@@ -511,10 +763,10 @@ function buildHud(narrow) {
   hud.add(E.bar);
 
   if (narrow) {
-    E.toggle = T('MENU', { font: F_MED, size: 0.15, ls: 0.25, ax: 'right', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
+    E.toggle = T(up('nav.menu'), { font: F_MED, size: 0.15, ls: 0.25, ax: 'right', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
     E.toggleHit = HitPlane();
     addHit(E.toggleHit, 'hud', () => setMenu(!menuOpen), (v) => { E.toggle.color = v > 0.5 ? COL.mint : COL.text; });
-    E.menuPanel = Panel(2.3, 2.3, { hud: true, radius: 0.18, fill: 0.85 });
+    E.menuPanel = Panel(2.3, 2.75, { hud: true, radius: 0.18, fill: 0.85 });
     hud.add(E.menuPanel, E.toggle, E.toggleHit);
   } else {
     // Section progress rail
@@ -529,12 +781,12 @@ function buildHud(narrow) {
     hud.add(E.counter, E.counterTotal);
   }
 
-  E.copy = T(narrow ? `© ${YEAR} NORDCIEL` : `© ${YEAR} NORDCIEL  ·  ONTARIO, CANADA`,
+  E.copy = T(up(narrow ? 'footer.copyrightShort' : 'footer.copyright', { year: YEAR }).replace(' · ', '  ·  '),
     { font: F_MED, size: 0.085, ls: 0.15, ay: 'bottom', hud: true, color: COL.muted });
-  E.privacy = T('PRIVACY POLICY', { font: F_MED, size: 0.085, ls: 0.15, ax: 'right', ay: 'bottom', hud: true, color: COL.muted, onSync: relayout });
+  E.privacy = T(up('footer.privacy'), { font: F_MED, size: 0.085, ls: 0.15, ax: 'right', ay: 'bottom', hud: true, color: COL.muted, onSync: relayout });
   E.privacyHit = HitPlane();
-  addHit(E.privacyHit, 'hud', () => { location.href = 'privacy.html'; }, (v) => { E.privacy.color = v > 0.5 ? COL.mint : COL.muted; });
-  E.hint = T(narrow ? 'SWIPE TO EXPLORE' : 'SCROLL TO EXPLORE', { font: F_MED, size: 0.08, ls: 0.35, ax: 'center', ay: 'bottom', hud: true, color: COL.text });
+  addHit(E.privacyHit, 'hud', () => { location.href = `privacy.html${location.search}`; }, (v) => { E.privacy.color = v > 0.5 ? COL.mint : COL.muted; });
+  E.hint = T(up(narrow ? 'home.hintSwipe' : 'home.hintScroll'), { font: F_MED, size: 0.08, ls: 0.35, ax: 'center', ay: 'bottom', hud: true, color: COL.text });
   hud.add(E.copy, E.privacy, E.privacyHit, E.hint);
 
   hudEls = E;
@@ -562,8 +814,14 @@ function layoutHud() {
   E.brandHit.scale.set(bw + 0.6, 0.45, 1);
   E.brandHit.position.set(left + (bw + 0.36) / 2, top, 0);
 
+  const LABELS = E.labels;
   if (!E.narrow) {
-    let x = right;
+    // Language pill at the far right, menu to its left
+    E.langPill.position.set(right - 0.26, top, 0);
+    E.lang.position.set(right - 0.26, top, 0);
+    E.langHit.scale.set(0.6, 0.4, 1);
+    E.langHit.position.set(right - 0.26, top, 0);
+    let x = right - 0.52 - 0.5;
     for (let i = E.items.length - 1; i >= 0; i--) {
       const { t, hit } = E.items[i];
       const w = textWidth(t, LABELS[i].length * 0.11);
@@ -581,6 +839,14 @@ function layoutHud() {
     const tw = textWidth(E.toggle, 0.6);
     E.toggleHit.scale.set(tw + 0.5, 0.5, 1);
     E.toggleHit.position.set(right - tw / 2, top, 0);
+    // Language pill sits in the last row of the open menu
+    const ly = top - 0.6 - 4 * 0.45;
+    const lx = right - 0.2 - 0.31;
+    E.langPill.position.set(lx, ly, 0);
+    E.lang.position.set(lx, ly, 0);
+    E.langHit.scale.set(0.8, 0.42, 1);
+    E.langHit.position.set(lx, ly, 0);
+    E.langPill.visible = E.lang.visible = E.langHit.visible = menuOpen;
     E.items.forEach(({ t, hit }, i) => {
       const y = top - 0.6 - i * 0.45;
       const w = textWidth(t, LABELS[i].length * 0.13);
@@ -592,8 +858,8 @@ function layoutHud() {
       t.userData.w = w;
     });
     E.menuPanel.visible = menuOpen;
-    E.menuPanel.position.set(right - 1.05, top - 0.6 - 0.675, -0.01);
-    const label = menuOpen ? 'CLOSE' : 'MENU';
+    E.menuPanel.position.set(right - 1.05, top - 1.5, -0.01);
+    const label = up(menuOpen ? 'nav.close' : 'nav.menu');
     if (E.toggle.text !== label) E.toggle.text = label;
   }
 
@@ -760,6 +1026,13 @@ function resize() {
   }
   if (booted && !transition) go(current, true);
 }
+// Switching language rebuilds the 3D text in place; the camera stays where it is.
+onLangChange(() => {
+  buildSections(narrowMode);
+  buildHud(narrowMode);
+  if (!transition) go(current, true);
+});
+
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(resize, 120); });
 resize();
@@ -815,13 +1088,14 @@ function frame() {
     mouse.y += (mouse.ty - mouse.y) * 0.05;
   }
   const right = new V3(1, 0, 0).applyQuaternion(base.q);
-  const up = new V3(0, 1, 0).applyQuaternion(base.q);
-  camera.position.copy(base.p).addScaledVector(right, mouse.x * 0.6).addScaledVector(up, -mouse.y * 0.4);
+  const upV = new V3(0, 1, 0).applyQuaternion(base.q);
+  camera.position.copy(base.p).addScaledVector(right, mouse.x * 0.6).addScaledVector(upV, -mouse.y * 0.4);
   tmpE.set(-mouse.y * 0.025, -mouse.x * 0.04, 0);
   camera.quaternion.copy(base.q).multiply(tmpQ.setFromEuler(tmpE));
 
   bg.position.copy(base.p);
   stars.rotation.y = t * 0.01;
+  updateConstellations(t);
   keyLight.position.copy(base.p).add(new V3(6, 4, -6));
   fillLight.position.copy(base.p).add(new V3(-5, -3, -8));
 

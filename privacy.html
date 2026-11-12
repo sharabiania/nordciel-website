@@ -3,46 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Privacy Policy — Nordciel</title>
+  <title data-i18n="privacy.metaTitle">Privacy Policy — Nordciel</title>
+  <link rel="alternate" hreflang="en" href="https://nordciel.com/privacy.html" />
+  <link rel="alternate" hreflang="fr" href="https://nordciel.com/privacy.html?lang=fr" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="nav">
-    <a class="brand" href="index.html"><span class="brand-mark">✦</span> Nordciel</a>
-    <nav><a href="index.html">Home</a></nav>
+    <a class="brand" href="index.html" data-home-link><span class="brand-mark">✦</span> Nordciel</a>
+    <nav>
+      <a href="index.html" data-home-link data-i18n="privacy.home">Home</a>
+      <a href="?lang=fr" data-lang-switch>FR</a>
+    </nav>
   </header>
   <main class="doc">
-    <h1>Privacy Policy</h1>
-    <p>Last updated: November 11, 2026</p>
+    <h1 data-i18n="privacy.title">Privacy Policy</h1>
+    <p data-i18n="privacy.updated">Last updated: November 12, 2026</p>
 
-    <h2>Who we are</h2>
-    <p>Nordciel ("we", "us") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at <a href="mailto:info@nordciel.com">info@nordciel.com</a>.</p>
+    <h2 data-i18n="privacy.whoTitle">Who we are</h2>
+    <p data-i18n="privacy.who">Nordciel ("we", "us") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at info@nordciel.com.</p>
 
-    <h2>Information we collect</h2>
-    <p>Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:</p>
+    <h2 data-i18n="privacy.collectTitle">Information we collect</h2>
+    <p data-i18n="privacy.collect">Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:</p>
     <ul>
-      <li>We do not require an account and do not collect your name, email or contacts.</li>
-      <li>Settings and progress are stored on your device.</li>
-      <li>App stores (Google Play, Apple App Store, Roblox) may collect diagnostic and purchase data under their own privacy policies.</li>
+      <li data-i18n="privacy.collect1">We do not require an account and do not collect your name, email or contacts.</li>
+      <li data-i18n="privacy.collect2">Settings and progress are stored on your device.</li>
+      <li data-i18n="privacy.collect3">App stores (Google Play, Apple App Store, Roblox) may collect diagnostic and purchase data under their own privacy policies.</li>
     </ul>
 
-    <h2>Third-party services</h2>
-    <p>Where an app uses third-party services (for example analytics, crash reporting or ads), those services are listed in the app's store "Data safety" section and governed by their own privacy policies.</p>
+    <h2 data-i18n="privacy.thirdTitle">Third-party services</h2>
+    <p data-i18n="privacy.third">Where an app uses third-party services (for example analytics, crash reporting or ads), those services are listed in the app's store "Data safety" section and governed by their own privacy policies.</p>
 
-    <h2>Children</h2>
-    <p>We do not knowingly collect personal information from children. If you believe a child has provided us personal information, contact us and we will delete it.</p>
+    <h2 data-i18n="privacy.childrenTitle">Children</h2>
+    <p data-i18n="privacy.children">We do not knowingly collect personal information from children. If you believe a child has provided us personal information, contact us and we will delete it.</p>
 
-    <h2>Your rights</h2>
-    <p>Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing <a href="mailto:info@nordciel.com">info@nordciel.com</a>.</p>
+    <h2 data-i18n="privacy.rightsTitle">Your rights</h2>
+    <p data-i18n="privacy.rights">Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing info@nordciel.com.</p>
 
-    <h2>Changes</h2>
-    <p>We may update this policy. The latest version will always be available on this page.</p>
+    <h2 data-i18n="privacy.changesTitle">Changes</h2>
+    <p data-i18n="privacy.changes">We may update this policy. The latest version will always be available on this page.</p>
   </main>
   <footer class="footer">
-    <span>© 2026 Nordciel · Ontario, Canada</span>
-    <a href="index.html">Home</a>
+    <span data-i18n="footer.copyright">© 2026 Nordciel · Ontario, Canada</span>
+    <a href="index.html" data-home-link data-i18n="privacy.home">Home</a>
   </footer>
+  <script type="module">
+    import { initI18n, onLangChange } from './i18n.js';
+    // Keep the chosen language when going back to the home page.
+    const syncHome = () => document.querySelectorAll('[data-home-link]').forEach((a) => { a.href = 'index.html' + location.search; });
+    await initI18n();
+    syncHome();
+    onLangChange(syncHome);
+  </script>
 </body>
 </html>
