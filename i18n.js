@@ -4,6 +4,12 @@
 // Language choice order: ?lang= in the URL > saved preference > browser language > English.
 // English is always loaded as the base, so a key missing in another language falls back to it.
 
+import { email, applyEmailLinks } from './contact.js?v=__BUILD__';
+
+// __BUILD__ is replaced with the commit id on deploy (see .github/workflows/deploy.yml),
+// so browsers fetch fresh files after every update instead of using a stale cache.
+export const BUILD = '__BUILD__';
+
 export const LANGUAGES = { en: 'English', fr: 'Français' };
 const DEFAULT = 'en';
 const STORAGE_KEY = 'nordciel.lang';
@@ -16,7 +22,7 @@ const listeners = new Set();
 const cache = {};
 async function load(code) {
   if (!cache[code]) {
-    cache[code] = fetch(new URL(`locales/${code}.json`, import.meta.url)).then((r) => {
+    cache[code] = fetch(new URL(`locales/${code}.json?v=${BUILD}`, import.meta.url)).then((r) => {
       if (!r.ok) throw new Error(`Locale ${code}: HTTP ${r.status}`);
       return r.json();
     });
@@ -44,7 +50,10 @@ export function t(key, params) {
   let v = lookup(dict, key);
   if (v === undefined) v = lookup(base, key);
   if (v === undefined) return key;
-  if (typeof v === 'string' && params) v = v.replace(/\{(\w+)\}/g, (m, k) => (k in params ? params[k] : m));
+  if (typeof v === 'string') {
+    const all = { email: email(), year: new Date().getFullYear(), ...params };
+    v = v.replace(/\{(\w+)\}/g, (m, k) => (k in all ? all[k] : m));
+  }
   return v;
 }
 
@@ -54,7 +63,7 @@ export function getLang() { return lang; }
 export function applyDom(root = document) {
   document.documentElement.lang = lang;
   root.querySelectorAll('[data-i18n]').forEach((el) => {
-    el.textContent = t(el.dataset.i18n, { year: new Date().getFullYear() });
+    el.textContent = t(el.dataset.i18n);
   });
   root.querySelectorAll('[data-i18n-attr]').forEach((el) => {
     el.dataset.i18nAttr.split(';').forEach((pair) => {
@@ -69,6 +78,7 @@ export function applyDom(root = document) {
     el.setAttribute('aria-label', LANGUAGES[other]);
     el.href = withLang(other);
   });
+  applyEmailLinks(root);
 }
 
 function withLang(code) {

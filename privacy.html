@@ -8,7 +8,7 @@
   <link rel="alternate" hreflang="fr" href="https://nordciel.com/privacy.html?lang=fr" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=__BUILD__" />
 </head>
 <body>
   <header class="nav">
@@ -23,7 +23,7 @@
     <p data-i18n="privacy.updated">Last updated: November 12, 2026</p>
 
     <h2 data-i18n="privacy.whoTitle">Who we are</h2>
-    <p data-i18n="privacy.who">Nordciel ("we", "us") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at info@nordciel.com.</p>
+    <p data-i18n="privacy.who">Nordciel ("we", "us") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at info [at] nordciel [dot] com.</p>
 
     <h2 data-i18n="privacy.collectTitle">Information we collect</h2>
     <p data-i18n="privacy.collect">Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:</p>
@@ -40,17 +40,20 @@
     <p data-i18n="privacy.children">We do not knowingly collect personal information from children. If you believe a child has provided us personal information, contact us and we will delete it.</p>
 
     <h2 data-i18n="privacy.rightsTitle">Your rights</h2>
-    <p data-i18n="privacy.rights">Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing info@nordciel.com.</p>
+    <p data-i18n="privacy.rights">Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing info [at] nordciel [dot] com.</p>
 
     <h2 data-i18n="privacy.changesTitle">Changes</h2>
     <p data-i18n="privacy.changes">We may update this policy. The latest version will always be available on this page.</p>
   </main>
   <footer class="footer">
     <span data-i18n="footer.copyright">© 2026 Nordciel · Ontario, Canada</span>
-    <a href="index.html" data-home-link data-i18n="privacy.home">Home</a>
+    <span>
+      <a href="https://www.instagram.com/nordcielinc/" target="_blank" rel="me noopener" data-i18n="footer.instagram">Instagram</a>
+      · <a href="index.html" data-home-link data-i18n="privacy.home">Home</a>
+    </span>
   </footer>
   <script type="module">
-    import { initI18n, onLangChange } from './i18n.js';
+    import { initI18n, onLangChange } from './i18n.js?v=__BUILD__';
     // Keep the chosen language when going back to the home page.
     const syncHome = () => document.querySelectorAll('[data-home-link]').forEach((a) => { a.href = 'index.html' + location.search; });
     await initI18n();

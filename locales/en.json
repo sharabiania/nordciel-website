@@ -23,28 +23,51 @@
   "work": {
     "title": "Work",
     "items": [
-      { "title": "Pianotes", "body": "A music app for learning and practising piano notes.", "status": "Coming soon" },
-      { "title": "Games", "body": "New games and experiences on mobile and Roblox. Coming soon.", "status": "In development" },
-      { "title": "More apps", "body": "Small, focused tools that are a pleasure to use.", "status": "Coming soon" }
+      {
+        "title": "Pianotes",
+        "body": "A music app for learning and practising piano notes.",
+        "status": "Coming soon"
+      },
+      {
+        "title": "Games",
+        "body": "New games and experiences on mobile and Roblox. Coming soon.",
+        "status": "In development"
+      },
+      {
+        "title": "More apps",
+        "body": "Small, focused tools that are a pleasure to use.",
+        "status": "Coming soon"
+      }
     ]
   },
   "services": {
     "title": "Services",
     "items": [
-      { "title": "Mobile & web apps", "body": "From idea to store listing: design, development and launch on Android, iOS and the web." },
-      { "title": "Games & 3D", "body": "Playful experiences, prototypes and real-time 3D for the web and mobile." },
-      { "title": "Custom software", "body": "Reliable tools and integrations built around how your business actually works." }
+      {
+        "title": "Mobile & web apps",
+        "body": "From idea to store listing: design, development and launch on Android, iOS and the web."
+      },
+      {
+        "title": "Games & 3D",
+        "body": "Playful experiences, prototypes and real-time 3D for the web and mobile."
+      },
+      {
+        "title": "Custom software",
+        "body": "Reliable tools and integrations built around how your business actually works."
+      }
     ]
   },
   "contact": {
     "label": "Contact",
     "title": "Let's build something.",
-    "lead": "Have a project, a question, or feedback on one of our apps?"
+    "lead": "Have a project, a question, or feedback on one of our apps?",
+    "instagram": "Follow us on Instagram"
   },
   "footer": {
     "copyright": "© {year} Nordciel · Ontario, Canada",
     "copyrightShort": "© {year} Nordciel",
-    "privacy": "Privacy policy"
+    "privacy": "Privacy policy",
+    "instagram": "Instagram"
   },
   "privacy": {
     "metaTitle": "Privacy Policy — Nordciel",
@@ -52,7 +75,7 @@
     "updated": "Last updated: November 12, 2026",
     "home": "Home",
     "whoTitle": "Who we are",
-    "who": "Nordciel (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at info@nordciel.com.",
+    "who": "Nordciel (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at {email}.",
     "collectTitle": "Information we collect",
     "collect": "Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:",
     "collect1": "We do not require an account and do not collect your name, email or contacts.",
@@ -63,7 +86,7 @@
     "childrenTitle": "Children",
     "children": "We do not knowingly collect personal information from children. If you believe a child has provided us personal information, contact us and we will delete it.",
     "rightsTitle": "Your rights",
-    "rights": "Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing info@nordciel.com.",
+    "rights": "Under Canadian privacy law (PIPEDA) you may ask what personal information we hold about you and request corrections or deletion by emailing {email}.",
     "changesTitle": "Changes",
     "changes": "We may update this policy. The latest version will always be available on this page."
   }

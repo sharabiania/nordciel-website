@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=__BUILD__" />
   <script type="importmap">
     {
       "imports": {
@@ -55,7 +55,7 @@
         <p class="lead" data-i18n="home.lead">Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.</p>
         <div class="cta">
           <a class="btn primary" href="#work" data-go="1" data-i18n="home.ctaWork">See our work</a>
-          <a class="btn ghost" href="mailto:info@nordciel.com">info@nordciel.com</a>
+          <a class="btn ghost" data-email>info [at] nordciel [dot] com</a>
         </div>
       </section>
 
@@ -92,13 +92,17 @@
       <section id="contact" class="section contact">
         <h2 data-i18n="contact.title">Let's build something.</h2>
         <p class="lead" data-i18n="contact.lead">Have a project, a question, or feedback on one of our apps?</p>
-        <a class="btn primary big" href="mailto:info@nordciel.com">info@nordciel.com</a>
+        <a class="btn primary big" data-email>info [at] nordciel [dot] com</a>
+        <p class="lead"><a class="link" href="https://www.instagram.com/nordcielinc/" target="_blank" rel="me noopener" data-i18n="contact.instagram">Follow us on Instagram</a></p>
       </section>
     </main>
 
     <footer class="footer">
       <span data-i18n="footer.copyright">© 2026 Nordciel · Ontario, Canada</span>
-      <a href="privacy.html" data-i18n="footer.privacy">Privacy policy</a>
+      <span>
+        <a href="https://www.instagram.com/nordcielinc/" target="_blank" rel="me noopener" data-i18n="footer.instagram">Instagram</a>
+        · <a href="privacy.html" data-i18n="footer.privacy">Privacy policy</a>
+      </span>
     </footer>
   </div>
 
@@ -108,6 +112,6 @@
       if (!window.__ncReady) { document.body.classList.remove('boot'); document.body.classList.add('fallback'); }
     }, 10000);
   </script>
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=__BUILD__"></script>
 </body>
 </html>

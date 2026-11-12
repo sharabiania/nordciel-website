@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Text } from 'troika-three-text';
-import { initI18n, t as tr, getLang, setLang, onLangChange, LANGUAGES } from './i18n.js';
+import { initI18n, t as tr, getLang, setLang, onLangChange, LANGUAGES } from './i18n.js?v=__BUILD__';
+import { email, openMail, INSTAGRAM_URL, INSTAGRAM_HANDLE } from './contact.js?v=__BUILD__';
 
 await initI18n();
 const up = (key, params) => String(tr(key, params)).toUpperCase();
@@ -14,7 +15,6 @@ const F_MED = `${FONTS}/space-grotesk@5.1.0/files/space-grotesk-latin-500-normal
 const F_BODY = `${FONTS}/inter@5.1.0/files/inter-latin-400-normal.woff`;
 
 const COL = { mint: 0x3df5b0, violet: 0x7b6cff, cyan: 0x2bd9ff, text: 0xe8ecff, muted: 0x9aa3c7, dark: 0x050816 };
-const EMAIL = 'mailto:info@nordciel.com';
 const SECTIONS = ['home', 'work', 'services', 'contact'];
 const navLabels = () => SECTIONS.map((s) => up(`nav.${s}`));
 const YEAR = new Date().getFullYear();
@@ -468,6 +468,27 @@ const ICONS = {
   cube: () => edges(new THREE.BoxGeometry(0.62, 0.62, 0.62), COL.cyan),
 };
 
+/** Line-art Instagram glyph (rounded square, lens, dot). */
+function igIcon(s, color, hud = false) {
+  const g = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, depthTest: !hud });
+  const h = s / 2;
+  const r = s * 0.28;
+  const sq = new THREE.Shape();
+  sq.moveTo(-h + r, -h); sq.lineTo(h - r, -h); sq.quadraticCurveTo(h, -h, h, -h + r);
+  sq.lineTo(h, h - r); sq.quadraticCurveTo(h, h, h - r, h);
+  sq.lineTo(-h + r, h); sq.quadraticCurveTo(-h, h, -h, h - r);
+  sq.lineTo(-h, -h + r); sq.quadraticCurveTo(-h, -h, -h + r, -h);
+  const lens = new THREE.Path().absarc(0, 0, s * 0.22, 0, Math.PI * 2);
+  g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(sq.getPoints(8)), mat));
+  g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(lens.getPoints(40)), mat));
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(s * 0.055, 12), new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: !hud }));
+  dot.position.set(s * 0.26, s * 0.26, 0);
+  g.add(dot);
+  if (hud) g.traverse((o) => { o.renderOrder = 1001; });
+  return g;
+}
+
 function starShape(r = 1) {
   const s = new THREE.Shape();
   const pts = [[0, 1], [0.22, 0.22], [1, 0], [0.22, -0.22], [0, -1], [-0.22, -0.22], [-1, 0], [-0.22, 0.22]];
@@ -484,7 +505,9 @@ function addHit(mesh, owner, onClick, apply, enabled) {
   hits.push(e);
   return e;
 }
-const mail = () => { window.location.href = EMAIL; };
+const mail = openMail;
+const openInstagram = () => window.open(INSTAGRAM_URL, '_blank', 'noopener');
+const EMAIL_LABEL = () => email().toUpperCase();
 
 function Button(label, o) {
   const g = new THREE.Group();
@@ -492,8 +515,12 @@ function Button(label, o) {
   const p = Panel(o.w, h, { radius: h / 2, fill: 0.22, solid: o.primary, hud: o.hud });
   g.add(p);
   const t = T(label, { font: F_MED, size: o.size ?? 0.24, ls: 0.12, ax: 'center', ay: 'middle',
-    color: o.primary ? COL.dark : COL.text, z: 0.05, hud: o.hud });
+    color: o.primary ? COL.dark : COL.text, z: 0.05, hud: o.hud, x: o.icon ? h * 0.3 : 0 });
   g.add(t);
+  if (o.icon) {
+    o.icon.position.set(-o.w / 2 + h * 0.75, 0, 0.05);
+    g.add(o.icon);
+  }
   addHit(p, o.owner, o.onClick, (v) => {
     p.material.uniforms.uHover.value = v;
     g.scale.setScalar(1 + v * 0.04);
@@ -635,7 +662,7 @@ function buildSections(narrow) {
     home.add(T(tr('home.lead'), { size: 0.3, color: COL.muted, lh: 1.55, maxWidth: 9, x: L, y: -0.75 }));
     const b1 = Button(up('home.ctaWork'), { w: 4.2, owner: 'home', primary: true, onClick: () => go(1) });
     b1.position.set(L + 2.1, -2.95, 0);
-    const b2 = Button('INFO@NORDCIEL.COM', { w: 5.4, owner: 'home', onClick: mail });
+    const b2 = Button(EMAIL_LABEL(), { w: 5.4, owner: 'home', onClick: mail });
     b2.position.set(L + 4.5 + 2.7, -2.95, 0);
     home.add(b1, b2);
     crystal.position.set(6.6, 0.4, 0);
@@ -650,7 +677,7 @@ function buildSections(narrow) {
     home.add(T(tr('home.lead'), { ...c, size: 0.25, color: COL.muted, lh: 1.55, maxWidth: 6.2, y: -0.35 }));
     const b1 = Button(up('home.ctaWork'), { w: 5.6, h: 0.95, owner: 'home', primary: true, onClick: () => go(1) });
     b1.position.set(0, -2.6, 0);
-    const b2 = Button('INFO@NORDCIEL.COM', { w: 5.6, h: 0.95, owner: 'home', onClick: mail });
+    const b2 = Button(EMAIL_LABEL(), { w: 5.6, h: 0.95, owner: 'home', onClick: mail });
     b2.position.set(0, -3.8, 0);
     home.add(b1, b2);
     home.userData.bounds = { w: 7.2, h: 11.6, cx: 0, cy: 0.6 };
@@ -680,22 +707,27 @@ function buildSections(narrow) {
     ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, y: 3.2 }));
     ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 1.5, y: 2.7, glow: COL.cyan, glowA: 0.35, fit: 16 }));
     ct.add(T(tr('contact.lead'), { ...c, size: 0.34, color: COL.muted, y: 0.4, fit: 16 }));
-    const b = Button('INFO@NORDCIEL.COM', { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
+    const b = Button(EMAIL_LABEL(), { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
     b.position.set(0, -1.4, 0);
+    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: openInstagram, icon: igIcon(0.32, COL.mint) });
+    ig.position.set(-2.8, -2.9, 0);
     const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: privacyHref });
-    p.position.set(0, -2.9, 0);
-    ct.add(b, p);
+    p.position.set(2.8, -2.9, 0);
+    ct.add(b, ig, p);
     ct.userData.bounds = { w: 17, h: 9, cx: 0, cy: 0.1 };
   } else {
     ct.add(T(`04 / ${up('contact.label')}`, { ...c, font: F_MED, size: 0.18, color: COL.mint, ls: 0.3, y: 3.0 }));
     ct.add(T(tr('contact.title'), { ...c, font: F_DISPLAY, size: 0.85, maxWidth: 6.4, y: 2.6, glow: COL.cyan, glowA: 0.35 }));
     ct.add(T(tr('contact.lead'), { ...c, size: 0.26, maxWidth: 6, color: COL.muted, lh: 1.5, y: 0.5 }));
-    const b = Button('INFO@NORDCIEL.COM', { w: 6.2, h: 1.1, size: 0.3, owner: 'contact', primary: true, onClick: mail });
+    const b = Button(EMAIL_LABEL(), { w: 6.2, h: 1.1, size: 0.3, owner: 'contact', primary: true, onClick: mail });
     b.position.set(0, -1.2, 0);
+    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.15, owner: 'contact', onClick: openInstagram, icon: igIcon(0.3, COL.mint) });
+    ig.position.set(0, -2.45, 0);
+    ct.add(ig);
     const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.14, owner: 'contact', onClick: privacyHref });
-    p.position.set(0, -2.5, 0);
+    p.position.set(0, -3.35, 0);
     ct.add(b, p);
-    ct.userData.bounds = { w: 7.2, h: 9, cx: 0, cy: 0.2 };
+    ct.userData.bounds = { w: 7.2, h: 9.4, cx: 0, cy: 0 };
   }
 
   for (const name of SECTIONS) sections[name].updateMatrixWorld(true);
@@ -789,6 +821,18 @@ function buildHud(narrow) {
   E.hint = T(up(narrow ? 'home.hintSwipe' : 'home.hintScroll'), { font: F_MED, size: 0.08, ls: 0.35, ax: 'center', ay: 'bottom', hud: true, color: COL.text });
   hud.add(E.copy, E.privacy, E.privacyHit, E.hint);
 
+  // Instagram: icon (+ label on wide screens) to the left of the privacy link
+  E.igIcon = igIcon(narrow ? 0.13 : 0.11, COL.muted, true);
+  E.igText = narrow ? null : T(up('footer.instagram'), { font: F_MED, size: 0.085, ls: 0.15, ax: 'right', ay: 'bottom', hud: true, color: COL.muted, onSync: relayout });
+  E.igHit = HitPlane();
+  addHit(E.igHit, 'hud', openInstagram, (v) => {
+    const c = v > 0.5 ? COL.mint : COL.muted;
+    E.igIcon.traverse((o) => o.material?.color.set(c));
+    if (E.igText) E.igText.color = c;
+  });
+  hud.add(E.igIcon, E.igHit);
+  if (E.igText) hud.add(E.igText);
+
   hudEls = E;
   layoutHud();
 }
@@ -869,6 +913,17 @@ function layoutHud() {
   const pw = textWidth(E.privacy, 1.2);
   E.privacyHit.scale.set(pw + 0.3, 0.35, 1);
   E.privacyHit.position.set(right - pw / 2, bottom + 0.05, 0);
+  let ix = right - pw - 0.4;
+  if (E.igText) {
+    const iw = textWidth(E.igText, 0.7);
+    E.igText.position.set(ix, bottom, 0);
+    ix -= iw + 0.12;
+  }
+  const isz = E.narrow ? 0.13 : 0.11;
+  E.igIcon.position.set(ix - isz / 2, bottom + (E.narrow ? 0.065 : 0.045), 0);
+  const igLeft = ix - isz;
+  E.igHit.scale.set(right - pw - 0.4 - igLeft + 0.2, 0.35, 1);
+  E.igHit.position.set((right - pw - 0.4 + igLeft) / 2, bottom + 0.05, 0);
   E.hint.position.set(0, bottom + (E.narrow ? 0.3 : 0), 0);
   updateHudActive();
 }
