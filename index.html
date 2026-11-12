@@ -14,87 +14,93 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "troika-three-text": "https://esm.sh/troika-three-text@0.52.4?external=three"
+      }
+    }
   </script>
 </head>
-<body>
+<body class="site boot">
   <canvas id="sky" aria-hidden="true"></canvas>
 
-  <header class="nav">
-    <a class="brand" href="#top"><span class="brand-mark">✦</span> Nordciel</a>
-    <nav>
-      <a href="#work">Work</a>
-      <a href="#services">Services</a>
-      <a href="#contact">Contact</a>
-    </nav>
-  </header>
+  <div id="loader" aria-hidden="true">
+    <div class="loader-mark">✦</div>
+    <div class="loader-name">NORDCIEL</div>
+    <div class="loader-bar"><span></span></div>
+  </div>
 
-  <main id="top">
-    <section class="hero">
-      <p class="eyebrow">Canadian software studio</p>
-      <h1>Software under<br /><span class="glow">the northern sky.</span></h1>
-      <p class="lead">Nordciel builds apps, games and custom software — crafted with care in Ontario, Canada.</p>
-      <div class="cta">
-        <a class="btn primary" href="#work">See our work</a>
-        <a class="btn ghost" href="mailto:info@nordciel.com">info@nordciel.com</a>
-      </div>
-      <div class="scroll-hint" aria-hidden="true">scroll</div>
-    </section>
+  <!-- Semantic content: read by screen readers and search engines, and shown
+       as a normal page when WebGL is unavailable. The 3D scene mirrors it. -->
+  <div class="a11y">
+    <header class="nav">
+      <a class="brand" href="#top" data-go="0"><span class="brand-mark">✦</span> Nordciel</a>
+      <nav aria-label="Main">
+        <a href="#work" data-go="1">Work</a>
+        <a href="#services" data-go="2">Services</a>
+        <a href="#contact" data-go="3">Contact</a>
+      </nav>
+    </header>
 
-    <section id="work" class="section">
-      <h2>Work</h2>
-      <div class="cards">
-        <article class="card">
-          <div class="card-icon">♪</div>
-          <h3>Pianotes</h3>
-          <p>A music app for learning and practising piano notes.</p>
-          <a class="link" href="https://play.google.com/store/search?q=Pianotes&c=apps" target="_blank" rel="noopener">Google Play →</a>
-        </article>
-        <article class="card soon">
-          <div class="card-icon">◆</div>
-          <h3>Games</h3>
-          <p>New games and experiences on mobile and Roblox — coming soon.</p>
-          <span class="tag">In development</span>
-        </article>
-        <article class="card soon">
-          <div class="card-icon">✧</div>
-          <h3>More apps</h3>
-          <p>Small, focused tools that are a pleasure to use.</p>
-          <span class="tag">Coming soon</span>
-        </article>
-      </div>
-    </section>
+    <main id="top">
+      <section class="hero">
+        <p class="eyebrow">Canadian software studio</p>
+        <h1>Nordciel<br /><span class="glow">Software under the northern sky.</span></h1>
+        <p class="lead">Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.</p>
+        <div class="cta">
+          <a class="btn primary" href="#work" data-go="1">See our work</a>
+          <a class="btn ghost" href="mailto:info@nordciel.com">info@nordciel.com</a>
+        </div>
+      </section>
 
-    <section id="services" class="section">
-      <h2>Services</h2>
-      <div class="cards">
-        <article class="card">
-          <h3>Mobile &amp; web apps</h3>
-          <p>From idea to store listing: design, development and launch on Android, iOS and the web.</p>
-        </article>
-        <article class="card">
-          <h3>Games &amp; interactive 3D</h3>
-          <p>Playful experiences, prototypes and real-time 3D for the web and mobile.</p>
-        </article>
-        <article class="card">
-          <h3>Custom software</h3>
-          <p>Reliable tools and integrations built around how your business actually works.</p>
-        </article>
-      </div>
-    </section>
+      <section id="work" class="section">
+        <h2>Work</h2>
+        <div class="cards">
+          <article class="card">
+            <h3>Pianotes</h3>
+            <p>A music app for learning and practising piano notes.</p>
+            <a class="link" href="https://play.google.com/store/search?q=Pianotes&c=apps" target="_blank" rel="noopener">Google Play →</a>
+          </article>
+          <article class="card">
+            <h3>Games</h3>
+            <p>New games and experiences on mobile and Roblox. Coming soon.</p>
+          </article>
+          <article class="card">
+            <h3>More apps</h3>
+            <p>Small, focused tools that are a pleasure to use.</p>
+          </article>
+        </div>
+      </section>
 
-    <section id="contact" class="section contact">
-      <h2>Let's build something.</h2>
-      <p class="lead">Have a project, a question, or feedback on one of our apps?</p>
-      <a class="btn primary big" href="mailto:info@nordciel.com">info@nordciel.com</a>
-    </section>
-  </main>
+      <section id="services" class="section">
+        <h2>Services</h2>
+        <div class="cards">
+          <article class="card"><h3>Mobile &amp; web apps</h3><p>From idea to store listing: design, development and launch on Android, iOS and the web.</p></article>
+          <article class="card"><h3>Games &amp; 3D</h3><p>Playful experiences, prototypes and real-time 3D for the web and mobile.</p></article>
+          <article class="card"><h3>Custom software</h3><p>Reliable tools and integrations built around how your business actually works.</p></article>
+        </div>
+      </section>
 
-  <footer class="footer">
-    <span>© <span id="year"></span> Nordciel · Ontario, Canada</span>
-    <a href="privacy.html">Privacy policy</a>
-  </footer>
+      <section id="contact" class="section contact">
+        <h2>Let's build something.</h2>
+        <p class="lead">Have a project, a question, or feedback on one of our apps?</p>
+        <a class="btn primary big" href="mailto:info@nordciel.com">info@nordciel.com</a>
+      </section>
+    </main>
 
+    <footer class="footer">
+      <span>© 2026 Nordciel · Ontario, Canada</span>
+      <a href="privacy.html">Privacy policy</a>
+    </footer>
+  </div>
+
+  <script>
+    // If the 3D scene can't start (old device, blocked CDN), show the plain page.
+    setTimeout(function () {
+      if (!window.__ncReady) { document.body.classList.remove('boot'); document.body.classList.add('fallback'); }
+    }, 10000);
+  </script>
   <script type="module" src="main.js"></script>
 </body>
 </html>
