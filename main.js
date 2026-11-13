@@ -42,7 +42,9 @@ renderer.setClearColor(COL.dark, 1);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(COL.dark, 0.018);
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 300);
+// Layout is computed for BASE_FOV; flights temporarily widen the FOV for a sense of speed.
+const BASE_FOV = 60;
+const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 300);
 scene.add(camera);
 
 const uTime = { value: 0 };
@@ -412,7 +414,7 @@ function estLines(text, size, maxW, charW = 0.52) {
 
 const panelVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const panelFS = `
-  uniform vec2 uSize; uniform float uTime, uHover, uOpacity, uR, uFill, uSolid; uniform vec3 uA, uB; varying vec2 vUv;
+  uniform vec2 uSize, uGlare; uniform float uTime, uHover, uOpacity, uR, uFill, uSolid, uScan; uniform vec3 uA, uB; varying vec2 vUv;
   float sdR(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
   void main() {
     vec2 p = (vUv - 0.5) * uSize;
@@ -431,6 +433,16 @@ const panelFS = `
     float e = edge * (0.35 + 0.55 * uHover + 0.5 * corner);
     col = mix(col, g * 1.4, e * (1.0 - uSolid));
     a = max(a, e);
+    // Holographic glare that follows the cursor while hovered
+    vec2 gd = (vUv - uGlare) * vec2(uSize.x / max(uSize.y, 1e-3), 1.0);
+    float glare = exp(-dot(gd, gd) * 3.5) * uHover * inside;
+    col += g * glare * 0.22 * (1.0 - uSolid) + vec3(glare * 0.08 * uSolid);
+    a = max(a, glare * 0.25);
+    // Scan line that sweeps top to bottom while the panel materialises (uScan 0 -> 1)
+    float scanY = 1.15 - uScan * 1.3;
+    float band = exp(-pow((vUv.y - scanY) * 14.0, 2.0)) * step(0.001, uScan) * step(uScan, 0.999) * inside;
+    col = mix(col, g * 1.6, band * 0.7);
+    a = max(a, band * 0.65);
     gl_FragColor = vec4(col, a * uOpacity);
   }`;
 
@@ -446,6 +458,7 @@ function Panel(w, h, o = {}) {
       uHover: { value: 0 }, uOpacity: { value: 1 },
       uA: { value: new THREE.Color(o.a ?? COL.mint) }, uB: { value: new THREE.Color(o.b ?? COL.violet) },
       uR: { value: (o.radius ?? 0.3) / u }, uFill: { value: o.fill ?? 0.42 }, uSolid: { value: o.solid ? 1 : 0 },
+      uScan: { value: 0 }, uGlare: { value: new THREE.Vector2(0.5, 0.5) },
     },
     vertexShader: panelVS, fragmentShader: panelFS,
     transparent: true, depthWrite: false, depthTest: !o.hud,
@@ -460,29 +473,177 @@ function HitPlane() { return new THREE.Mesh(new THREE.PlaneGeometry(1, 1), hitMa
 
 const lineMat = (c) => new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.95 });
 const edges = (geo, c) => new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat(c));
-const wire = (geo, c) => new THREE.LineSegments(new THREE.WireframeGeometry(geo), lineMat(c));
+// ---------------------------------------------------------------------------
+// Card emblems: tiny star systems. A glowing star, planets on orbit lines
+// (seen from slightly above, so the orbits read as ellipses in 3D), and extras
+// per system: binary stars, moons, rings, an asteroid belt, inclined orbits.
+// Authored within a radius of ~0.48; hovering a card speeds the orbits up.
+// ---------------------------------------------------------------------------
+const glowTexture = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)');
+  r.addColorStop(0.22, 'rgba(255,255,255,0.5)');
+  r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
 
+const ball = (r, color) => new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2),
+  new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, fog: false }));
+const glow = (size, color, opacity = 0.9) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({
+    map: glowTexture, color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  return m;
+};
+function orbitLine(r, color, opacity = 0.45) {
+  const pts = [];
+  for (let k = 0; k < 96; k++) {
+    const a = (k / 96) * Math.PI * 2;
+    pts.push(new V3(Math.cos(a) * r, Math.sin(a) * r, 0));
+  }
+  return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity, fog: false }));
+}
+
+/**
+ * cfg: { glow, stars: [{ r, c, a (binary orbit radius) }], orbits: [{ r, c, size, phase, incl, node,
+ *        moon: { r, size, c }, ring: { c }, line }], belt: { r, w, c, n }, tilt }
+ */
+function starSystem(cfg) {
+  const root = new THREE.Group();
+  // The halo stays facing the viewer; everything else lives in the tilted orbital plane.
+  root.add(glow(cfg.halo ?? 0.62, cfg.glow ?? COL.mint));
+  const plane = new THREE.Group();
+  plane.rotation.x = cfg.tilt ?? -0.85;
+  root.add(plane);
+  const movers = [];
+
+  (cfg.stars ?? [{ r: 0.075, c: 0xffffff }]).forEach((st, i) => {
+    const holder = new THREE.Group();
+    const m = ball(st.r, st.c);
+    m.position.x = st.a ?? 0;
+    holder.add(m);
+    if (st.a) {
+      holder.add(orbitLine(st.a, st.c, 0.2));
+      holder.rotation.z = i * Math.PI;
+      movers.push({ obj: holder, speed: 1.6 });
+    }
+    plane.add(holder);
+  });
+
+  for (const o of cfg.orbits ?? []) {
+    const orbit = new THREE.Group();
+    orbit.rotation.set(o.incl ?? 0, o.node ?? 0, 0);
+    plane.add(orbit);
+    if (o.line !== false) orbit.add(orbitLine(o.r, o.c));
+    const arm = new THREE.Group();
+    arm.rotation.z = o.phase ?? 0;
+    orbit.add(arm);
+    const planet = new THREE.Group();
+    planet.position.x = o.r;
+    arm.add(planet);
+    planet.add(ball(o.size * 1.25, o.c));
+    planet.add(glow(o.size * 6, o.c, 0.35));
+    if (o.ring) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(o.size * 1.6, o.size * 2.4, 48),
+        new THREE.MeshBasicMaterial({ color: o.ring.c, transparent: true, opacity: 0.75, side: THREE.DoubleSide, fog: false }));
+      ring.rotation.x = 0.5;
+      planet.add(ring);
+    }
+    if (o.moon) {
+      const moonArm = new THREE.Group();
+      planet.add(moonArm);
+      moonArm.add(orbitLine(o.moon.r, o.moon.c, 0.22));
+      const moon = ball(o.moon.size, o.moon.c);
+      moon.position.x = o.moon.r;
+      moonArm.add(moon);
+      movers.push({ obj: moonArm, speed: 3.2 });
+    }
+    // Kepler-ish: inner planets go round faster.
+    movers.push({ obj: arm, speed: 0.55 * Math.pow(0.3 / o.r, 1.5) });
+  }
+
+  if (cfg.belt) {
+    const { r, w, c, n } = cfg.belt;
+    const pos = new Float32Array(n * 3);
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = r + (Math.random() - 0.5) * w;
+      pos.set([Math.cos(a) * rr, Math.sin(a) * rr, (Math.random() - 0.5) * 0.02], k * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const belt = new THREE.Points(geo, new THREE.PointsMaterial({ color: c, size: 0.022, transparent: true, opacity: 0.85, fog: false }));
+    plane.add(belt);
+    movers.push({ obj: belt, speed: 0.12 });
+  }
+
+  const seed = Math.random() * 10;
+  root.userData.tick = (dt, t) => {
+    const spin = root.userData.spin ?? 1;
+    for (const m of movers) m.obj.rotation.z += dt * m.speed * spin;
+    // A slow wobble so the system is seen from slowly changing angles.
+    root.rotation.x = Math.sin(t * 0.45 + seed) * 0.07;
+    root.rotation.y = Math.sin(t * 0.32 + seed) * 0.3;
+  };
+  return root;
+}
+
+const W_ = 0xffffff;
 const ICONS = {
-  piano() {
-    const g = new THREE.Group();
-    for (let i = 0; i < 5; i++) {
-      const k = edges(new THREE.BoxGeometry(0.17, 0.75, 0.12), COL.mint);
-      k.position.x = (i - 2) * 0.19;
-      g.add(k);
-    }
-    for (const i of [0, 1, 3]) {
-      const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.42, 0.14),
-        new THREE.MeshBasicMaterial({ color: COL.violet, transparent: true, opacity: 0.95 }));
-      b.position.set((i - 1.5) * 0.19, 0.16, 0.04);
-      g.add(b);
-    }
-    return g;
-  },
-  gem: () => edges(new THREE.OctahedronGeometry(0.48, 0), COL.violet),
-  ring: () => wire(new THREE.TorusGeometry(0.36, 0.1, 3, 12), COL.cyan),
-  ico: () => edges(new THREE.IcosahedronGeometry(0.48, 0), COL.mint),
-  knot: () => wire(new THREE.TorusKnotGeometry(0.3, 0.08, 48, 5), COL.violet),
-  cube: () => edges(new THREE.BoxGeometry(0.62, 0.62, 0.62), COL.cyan),
+  // Work
+  trio: () => starSystem({
+    glow: COL.mint,
+    orbits: [
+      { r: 0.2, c: COL.mint, size: 0.032, phase: 0.4 },
+      { r: 0.32, c: COL.cyan, size: 0.042, phase: 2.6 },
+      { r: 0.45, c: COL.violet, size: 0.038, phase: 4.6 },
+    ],
+  }),
+  binary: () => starSystem({
+    glow: COL.violet, halo: 0.7,
+    stars: [{ r: 0.05, c: 0xd9fff1, a: 0.07 }, { r: 0.04, c: 0xd8d2ff, a: 0.07 }],
+    orbits: [
+      { r: 0.3, c: COL.cyan, size: 0.04, phase: 1.2 },
+      { r: 0.45, c: COL.mint, size: 0.036, phase: 3.8, moon: { r: 0.075, size: 0.014, c: W_ } },
+    ],
+  }),
+  ringed: () => starSystem({
+    glow: COL.cyan,
+    orbits: [
+      { r: 0.24, c: COL.cyan, size: 0.032, phase: 5.2 },
+      { r: 0.43, c: COL.violet, size: 0.05, phase: 2.0, ring: { c: COL.mint } },
+    ],
+  }),
+  // Services
+  moons: () => starSystem({
+    glow: COL.mint,
+    orbits: [
+      { r: 0.22, c: COL.violet, size: 0.032, phase: 3.0 },
+      { r: 0.41, c: COL.cyan, size: 0.048, phase: 0.8, moon: { r: 0.09, size: 0.016, c: COL.mint } },
+    ],
+  }),
+  belt: () => starSystem({
+    glow: COL.violet,
+    belt: { r: 0.31, w: 0.06, c: COL.muted, n: 90 },
+    orbits: [
+      { r: 0.18, c: COL.mint, size: 0.03, phase: 1.5 },
+      { r: 0.45, c: COL.violet, size: 0.044, phase: 4.2 },
+    ],
+  }),
+  inclined: () => starSystem({
+    glow: COL.cyan, tilt: -0.65,
+    orbits: [
+      { r: 0.22, c: COL.mint, size: 0.03, phase: 0.2, incl: 0.55, node: 0.3 },
+      { r: 0.34, c: COL.cyan, size: 0.036, phase: 2.2, incl: -0.45, node: -0.5 },
+      { r: 0.45, c: COL.violet, size: 0.04, phase: 4.0, incl: 0.25, node: 1.1 },
+    ],
+  }),
 };
 
 /** Rounded-square outline shared by the social glyphs. */
@@ -561,38 +722,46 @@ const openUrl = (url) => () => window.open(url, '_blank', 'noopener');
 const goPrivacy = () => { location.href = `privacy.html${location.search}`; };
 const EMAIL_LABEL = () => email().toUpperCase();
 
+// Buttons are an outer group (positioned by layouts, animated by the section
+// choreography) holding a body that reacts to hover: lift, scale and 3D tilt.
 function Button(label, o) {
   const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
   const h = o.h ?? 0.9;
   const p = Panel(o.w, h, { radius: h / 2, fill: 0.22, solid: o.primary });
-  g.add(p);
+  body.add(p);
   const t = T(label, { font: F_MED, size: o.size ?? 0.24, ls: 0.12, ax: 'center', ay: 'middle',
     color: o.primary ? COL.dark : COL.text, z: 0.05, x: o.icon ? h * 0.3 : 0, fit: o.w - h * (o.icon ? 1.6 : 0.9) });
-  g.add(t);
+  body.add(t);
   if (o.icon) {
     o.icon.position.set(-o.w / 2 + h * 0.75, 0, 0.05);
-    g.add(o.icon);
+    body.add(o.icon);
   }
-  addHit(p, o.owner, o.onClick, (v) => {
+  const e = addHit(p, o.owner, o.onClick, (v) => {
     p.material.uniforms.uHover.value = v;
-    g.scale.setScalar(1 + v * 0.04);
-    g.position.z = (g.userData.z0 ?? 0) + v * 0.15;
+    body.scale.setScalar(1 + v * 0.04);
+    body.position.z = v * 0.25;
   });
+  e.tilt = { obj: body, panel: p, w: o.w, h, max: 0.14 };
   return g;
 }
 
 /** Round glass button holding only an icon (used for social links). */
 function IconButton(icon, o) {
   const g = new THREE.Group();
+  const body = new THREE.Group();
+  g.add(body);
   const d = o.d;
   const p = Panel(d, d, { radius: d / 2, fill: 0.22 });
-  icon.position.set(0, 0, 0.05);
-  g.add(p, icon);
-  addHit(p, o.owner, o.onClick, (v) => {
+  icon.position.set(0, 0, 0.12);
+  body.add(p, icon);
+  const e = addHit(p, o.owner, o.onClick, (v) => {
     p.material.uniforms.uHover.value = v;
-    g.scale.setScalar(1 + v * 0.06);
-    g.position.z = (g.userData.z0 ?? 0) + v * 0.15;
+    body.scale.setScalar(1 + v * 0.08);
+    body.position.z = v * 0.3;
   });
+  e.tilt = { obj: body, panel: p, w: d, h: d, max: 0.35 };
   return g;
 }
 
@@ -628,26 +797,28 @@ function Card(o) {
   g.add(p);
   const L = -w / 2 + s.pad;
   const top = h / 2 - s.pad;
-  const iconSpace = s.icon * 2.2;
-  g.add(T(o.num, { font: F_MED, size: s.num, color: COL.mint, ls: 0.25, x: L, y: top }));
+  const iconSpace = s.icon * 3.45;
+  // Layers sit at different depths above the glass, so tilting the card shows parallax.
+  g.add(T(o.num, { font: F_MED, size: s.num, color: COL.mint, ls: 0.25, x: L, y: top, z: 0.14 }));
   const yTitle = top - s.num - 0.2;
-  g.add(T(o.title, { font: F_DISPLAY, size: s.title, x: L, y: yTitle, fit: w - s.pad * 2 - iconSpace }));
-  g.add(T(o.body, { size: s.body, color: COL.muted, lh: s.lh, maxWidth: w - s.pad * 2, x: L, y: yTitle - s.title * 1.15 - 0.3 }));
+  g.add(T(o.title, { font: F_DISPLAY, size: s.title, x: L, y: yTitle, z: 0.2, fit: w - s.pad * 2 - iconSpace }));
+  g.add(T(o.body, { size: s.body, color: COL.muted, lh: s.lh, maxWidth: w - s.pad * 2, x: L, y: yTitle - s.title * 1.15 - 0.3, z: 0.08 }));
   if (o.footer) {
-    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: -h / 2 + s.pad, ay: 'bottom' }));
+    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: -h / 2 + s.pad, ay: 'bottom', z: 0.14 }));
   }
   const icon = ICONS[o.icon]();
-  icon.scale.setScalar(s.icon / 0.48);
-  icon.position.set(w / 2 - s.pad - s.icon, top - s.icon * 0.8, 0.35);
+  icon.scale.setScalar((s.icon / 0.48) * 1.3);
+  icon.position.set(w / 2 - s.pad - s.icon * 1.45, top - s.icon, 0.5);
   icon.userData.spin = 1;
   icons.push(icon);
   g.add(icon);
-  addHit(p, o.owner, o.onClick, (v) => {
+  const e = addHit(p, o.owner, o.onClick, (v) => {
     p.material.uniforms.uHover.value = v;
-    g.position.z = v * 0.35;
-    g.scale.setScalar(1 + v * 0.025);
+    g.position.z = v * 0.3;
+    g.scale.setScalar(1 + v * 0.015);
     icon.userData.spin = 1 + v * 4;
   });
+  e.tilt = { obj: g, panel: p, w, h, max: 0.17 };
   g.userData.h = h;
   return g;
 }
@@ -732,13 +903,13 @@ function makeCrystal() {
     new THREE.MeshBasicMaterial({ color: COL.cyan, transparent: true, opacity: 0.5 }));
   ring2.rotation.x = Math.PI / 1.8;
   group.add(core, w, ring1, ring2);
-  group.userData = { core, w, ring1, ring2, baseY: 0, avoid: true };
+  group.userData = { core, w, ring1, ring2, avoid: true, spin: 0, boost: 0 };
   return group;
 }
 
 // Visual config per card; the words come from the locale files (same order).
-const WORK_ICONS = ['piano', 'gem', 'ring'];
-const SERVICE_ICONS = ['ico', 'knot', 'cube'];
+const WORK_ICONS = ['trio', 'binary', 'ringed'];
+const SERVICE_ICONS = ['moons', 'belt', 'inclined'];
 const cardList = (key, icns) => tr(`${key}.items`).map((item, i) => ({
   num: String(i + 1).padStart(2, '0'),
   title: item.title,
@@ -763,7 +934,6 @@ function buildHome(g, m) {
     b2.position.set(L + 4.5 + 2.7, -2.95, 0);
     g.add(b1, b2);
     crystal.position.set(6.6, 0.4, 0);
-    crystal.userData.baseY = 0.4;
     g.userData.bounds = { top: 4.1, bottom: -3.55, cx: -0.6 };
     return;
   }
@@ -788,7 +958,6 @@ function buildHome(g, m) {
     y -= 0.9;
     crystal.scale.setScalar(0.55);
     crystal.position.set(4.4, y / 2, -0.5);
-    crystal.userData.baseY = y / 2;
     g.userData.bounds = { top: 0, bottom: y, cx: 0 };
     return;
   }
@@ -799,7 +968,6 @@ function buildHome(g, m) {
   const cs = tab ? 0.62 : 0.46;
   crystal.scale.setScalar(cs);
   crystal.position.set(0, -3.3 * cs, -0.5);
-  crystal.userData.baseY = -3.3 * cs;
   let y = -6.6 * cs - 0.2;
   const eb = tab ? 0.26 : 0.24;
   g.add(T(up('home.eyebrow'), { ...c, font: F_MED, size: eb, color: COL.mint, ls: 0.3, y, fit: CW }));
@@ -922,7 +1090,103 @@ function buildSections(m) {
   buildCardsSection(sections.work, 'work', '02', WORK_ICONS, m);
   buildCardsSection(sections.services, 'services', '03', SERVICE_ICONS, m);
   buildContact(sections.contact, m);
-  for (const name of SECTIONS) sections[name].updateMatrixWorld(true);
+  for (const name of SECTIONS) {
+    captureRest(sections[name]);
+    sections[name].updateMatrixWorld(true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section choreography: the section you arrive at assembles out of the depth
+// (top to bottom, tilted back, each panel swept by a scan line); the one you
+// leave peels off towards the camera. Each top-level element gets an offset
+// from its rest transform that is tweened.
+// ---------------------------------------------------------------------------
+const ZERO_OFF = { x: 0, y: 0, z: 0, rx: 0, ry: 0, s: 1 };
+const OFF_KEYS = Object.keys(ZERO_OFF);
+const easeOutExpo = (k) => (k >= 1 ? 1 : 1 - Math.pow(2, -10 * k));
+const easeInCubic = (k) => k * k * k;
+
+function captureRest(g) {
+  g.children.forEach((c) => {
+    c.userData.rest = { p: c.position.clone(), r: c.rotation.clone(), s: c.scale.clone() };
+    c.userData.off = { ...ZERO_OFF };
+    c.userData.anim = null;
+    const panels = [];
+    c.traverse((o) => { if (o.material?.uniforms?.uScan) panels.push(o.material.uniforms.uScan); });
+    c.userData.scans = panels;
+  });
+  g.userData.animating = false;
+}
+
+function applyOff(c, o) {
+  const r = c.userData.rest;
+  c.position.set(r.p.x + o.x, r.p.y + o.y, r.p.z + o.z);
+  c.rotation.set(r.r.x + o.rx, r.r.y + o.ry, r.r.z);
+  c.scale.copy(r.s).multiplyScalar(o.s);
+}
+
+/** Top-to-bottom (then left-to-right) order, with the side each element sits on. */
+function orderedKids(g) {
+  const cx = g.userData.bounds?.cx ?? 0;
+  return g.children.filter((c) => c.userData.rest)
+    .map((c) => ({ c, y: Math.round(c.userData.rest.p.y * 2) / 2, x: c.userData.rest.p.x }))
+    .sort((a, b) => b.y - a.y || a.x - b.x)
+    .map(({ c, x }) => ({ c, side: Math.abs(x - cx) < 0.6 ? 0 : Math.sign(x - cx) }));
+}
+
+function choreograph(name, kind, startAt) {
+  const g = sections[name];
+  const hidden = g.userData.alpha < 0.05;
+  orderedKids(g).forEach(({ c, side }, i) => {
+    const cur = c.userData.off;
+    if (kind === 'enter') {
+      c.userData.anim = {
+        from: hidden ? { x: side * 1.6, y: -1.1, z: -6 - i * 0.4, rx: -0.6, ry: -side * 0.5, s: 0.86 } : { ...cur },
+        to: { ...ZERO_OFF }, t0: startAt + Math.min(i * 60, 480), dur: 1000, ease: easeOutExpo, scan: true,
+      };
+    } else {
+      c.userData.anim = {
+        from: { ...cur },
+        to: { x: side * 1.4, y: 0.9, z: 3 + i * 0.3, rx: 0.4, ry: side * 0.45, s: 1.06 },
+        t0: startAt + Math.min(i * 30, 240), dur: 700, ease: easeInCubic, scan: false,
+      };
+    }
+  });
+  g.userData.animating = kind === 'enter';
+  if (kind === 'enter' && name === 'home' && crystal) crystal.userData.boost = 1;
+}
+
+function settle(name) {
+  const g = sections[name];
+  g.children.forEach((c) => {
+    if (!c.userData.rest) return;
+    c.userData.anim = null;
+    c.userData.off = { ...ZERO_OFF };
+    applyOff(c, ZERO_OFF);
+    c.userData.scans.forEach((u) => { u.value = 0; });
+  });
+  g.userData.animating = false;
+}
+
+function updateChoreography(now) {
+  for (const name of SECTIONS) {
+    const g = sections[name];
+    let busy = false;
+    for (const c of g.children) {
+      const a = c.userData.anim;
+      if (!a) continue;
+      const k = clamp((now - a.t0) / a.dur, 0, 1);
+      const e = a.ease(k);
+      const o = c.userData.off;
+      for (const key of OFF_KEYS) o[key] = a.from[key] + (a.to[key] - a.from[key]) * e;
+      applyOff(c, o);
+      if (a.scan) c.userData.scans.forEach((u) => { u.value = k > 0 && k < 1 ? clamp(k * 1.35, 0, 1) : 0; });
+      if (k >= 1) c.userData.anim = null;
+      else if (a.scan && k < 0.75) busy = true;
+    }
+    g.userData.animating = busy;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -935,7 +1199,7 @@ hud.position.z = -HUD_Z;
 camera.add(hud);
 let hudEls = null;
 let menuOpen = false;
-const fov2 = () => Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+const fov2 = () => Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2));
 const hudUnitsPerPx = () => (2 * HUD_Z * fov2()) / innerHeight;
 
 function textWidth(t, fallback) {
@@ -1277,13 +1541,48 @@ function go(i, opts = {}) {
   }
   scrollVel = 0;
   const to = poseFor(i, scroll);
-  if (opts.instant) { base.p.copy(to.p); base.q.copy(to.q); transition = null; }
-  else transition = { from: { p: base.p.clone(), q: base.q.clone() }, to, t0: performance.now(), dur: reduceMotion ? 300 : (prev < 0 ? 2400 : 1700) };
+  if (opts.instant) {
+    base.p.copy(to.p); base.q.copy(to.q); transition = null;
+    settle(SECTIONS[i]);
+  } else {
+    const now = performance.now();
+    const dur = reduceMotion ? 300 : (prev < 0 ? 2600 : 1800);
+    const from = { p: base.p.clone(), q: base.q.clone() };
+    // Cubic Bezier flight: climb out towards the target, swing wide, then glide
+    // in along the destination's line of sight.
+    const D = from.p.distanceTo(to.p);
+    const UP = new V3(0, 1, 0);
+    const c1 = from.p.clone().lerp(to.p, 0.25).addScaledVector(UP, D * 0.22)
+      .addScaledVector(new V3(0, 0, 1).applyQuaternion(from.q), D * 0.08);
+    const c2 = to.p.clone().addScaledVector(new V3(0, 0, 1).applyQuaternion(to.q), D * 0.45).addScaledVector(UP, D * 0.1);
+    transition = { from, to, c1, c2, t0: now, dur };
+    if (reduceMotion) {
+      settle(SECTIONS[i]);
+    } else {
+      if (prev >= 0 && prev !== i) choreograph(SECTIONS[prev], 'exit', now);
+      choreograph(SECTIONS[i], 'enter', now + dur * 0.45);
+    }
+  }
   if (hudEls?.compact && menuOpen) setMenu(false); else updateHudActive();
   history.replaceState(null, '', i ? `#${SECTIONS[i]}` : location.pathname + location.search);
 }
 
-const ease = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const ease = (k) => (k < 0.5 ? 8 * k * k * k * k : 1 - Math.pow(-2 * k + 2, 4) / 2); // in-out quart
+
+const _m4 = new THREE.Matrix4();
+const _bp = new V3();
+const _bt = new V3();
+const _look = new THREE.Quaternion();
+function bezier(out, a, b, c, d, t) {
+  const u = 1 - t;
+  return out.set(0, 0, 0).addScaledVector(a, u * u * u).addScaledVector(b, 3 * u * u * t)
+    .addScaledVector(c, 3 * u * t * t).addScaledVector(d, t * t * t);
+}
+function bezierTangent(out, a, b, c, d, t) {
+  const u = 1 - t;
+  return out.set(0, 0, 0).addScaledVector(a, -3 * u * u).addScaledVector(b, 3 * u * u - 6 * u * t)
+    .addScaledVector(c, 6 * u * t - 3 * t * t).addScaledVector(d, 3 * t * t);
+}
 
 // ---------------------------------------------------------------------------
 // Input: mouse hover/click, touch drag-to-scroll + swipe between sections,
@@ -1298,17 +1597,19 @@ let drag = null;
 const SWIPE_PX = 70;
 
 function activeHits() {
-  return hits.filter((e) => (e.owner === 'hud' || (e.owner === SECTIONS[current] && !transition && !(menuOpen && hudEls?.compact)))
+  return hits.filter((e) => (e.owner === 'hud' || (e.owner === SECTIONS[current] && !transition
+    && !sections[SECTIONS[current]].userData.animating && !(menuOpen && hudEls?.compact)))
     && (!e.enabled || e.enabled()));
 }
+const pickPoint = new V3();
 function pick(ndc) {
   raycaster.setFromCamera(ndc, camera);
   const list = activeHits();
   const res = raycaster.intersectObjects(list.map((e) => e.mesh), false);
   if (!res.length) return null;
-  const hudHit = res.find((r) => list.find((e) => e.mesh === r.object)?.owner === 'hud');
-  const obj = (hudHit || res[0]).object;
-  return list.find((e) => e.mesh === obj) || null;
+  const hit = res.find((r) => list.find((e) => e.mesh === r.object)?.owner === 'hud') || res[0];
+  pickPoint.copy(hit.point);
+  return list.find((e) => e.mesh === hit.object) || null;
 }
 const toNdc = (e) => new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
 const rubber = (raw, max) => (raw < 0 ? raw * 0.35 : raw > max ? max + (raw - max) * 0.35 : raw);
@@ -1492,6 +1793,13 @@ function markReady() {
 const clock = new THREE.Clock();
 const tmpQ = new THREE.Quaternion();
 const tmpE = new THREE.Euler();
+const _fwd = new V3();
+const _local = new V3();
+let flightSpeed = 0; // 0..1, peaks mid-flight
+let bank = 0;
+let prevYaw = null;
+let pitch = 0;
+let prevScroll = 0;
 
 function frame() {
   requestAnimationFrame(frame);
@@ -1499,16 +1807,28 @@ function frame() {
   uTime.value += reduceMotion ? dt * 0.15 : dt;
   const t = uTime.value;
 
+  flightSpeed = 0;
   if (transition) {
     let k = (performance.now() - transition.t0) / transition.dur;
     if (k >= 1) k = 1;
     const e = ease(k);
-    base.p.lerpVectors(transition.from.p, transition.to.p, e);
-    base.q.slerpQuaternions(transition.from.q, transition.to.q, e);
-    if (!reduceMotion) {
-      const arc = Math.sin(Math.PI * e);
-      base.p.y += arc * 3;
-      base.p.add(new V3(0, 0, 1).applyQuaternion(base.q).multiplyScalar(arc * 7));
+    const { from, to, c1, c2 } = transition;
+    base.q.slerpQuaternions(from.q, to.q, e);
+    if (reduceMotion) {
+      base.p.lerpVectors(from.p, to.p, e);
+    } else {
+      bezier(base.p, from.p, c1, c2, to.p, e);
+      // Look ahead: mid-flight the camera turns towards where it is heading.
+      bezierTangent(_bt, from.p, c1, c2, to.p, e);
+      if (_bt.lengthSq() > 1e-6) {
+        _bt.normalize();
+        _fwd.set(0, 0, -1).applyQuaternion(base.q);
+        const w = 0.55 * Math.pow(Math.sin(Math.PI * k), 2) * clamp(_bt.dot(_fwd), 0, 1);
+        _m4.lookAt(base.p, _bp.copy(base.p).add(_bt), camera.up);
+        _look.setFromRotationMatrix(_m4);
+        base.q.slerp(_look, w);
+      }
+      flightSpeed = Math.pow(Math.sin(Math.PI * k), 2);
     }
     if (k === 1) transition = null;
   } else if (current >= 0) {
@@ -1528,16 +1848,48 @@ function frame() {
     base.q.copy(p.q);
   }
 
-  // Parallax (mouse only)
+  // Parallax (mouse only), banking into turns, pitch with scroll speed, idle drift
   if (!reduceMotion) {
     mouse.x += (mouse.tx - mouse.x) * 0.05;
     mouse.y += (mouse.ty - mouse.y) * 0.05;
+    _fwd.set(0, 0, -1).applyQuaternion(base.q);
+    const yaw = Math.atan2(_fwd.x, -_fwd.z);
+    if (prevYaw !== null && dt > 0) {
+      let dy = yaw - prevYaw;
+      if (dy > Math.PI) dy -= Math.PI * 2;
+      if (dy < -Math.PI) dy += Math.PI * 2;
+      const target = clamp((dy / dt) * 0.35, -0.32, 0.32);
+      bank += (target - bank) * Math.min(1, dt * 3);
+    }
+    prevYaw = yaw;
+    const scrollSpeed = dt > 0 ? (scroll - prevScroll) / dt : 0;
+    const pitchTarget = transition ? 0 : clamp(-scrollSpeed * 0.01, -0.07, 0.07);
+    pitch += (pitchTarget - pitch) * Math.min(1, dt * 6);
   }
+  prevScroll = scroll;
   const right = new V3(1, 0, 0).applyQuaternion(base.q);
   const upV = new V3(0, 1, 0).applyQuaternion(base.q);
-  camera.position.copy(base.p).addScaledVector(right, mouse.x * 0.6).addScaledVector(upV, -mouse.y * 0.4);
-  tmpE.set(-mouse.y * 0.025, -mouse.x * 0.04, 0);
+  // Orbit parallax: the camera swings around the content's centre (it moves
+  // sideways and turns back to face it), so the layout stays put while layers at
+  // different depths shift against each other.
+  const idle = reduceMotion ? 0 : 1 - flightSpeed;
+  const D = camDist();
+  const ox = mouse.x * 1.8 + Math.sin(t * 0.31) * 0.25 * idle;
+  const oy = -mouse.y * 1.1 + Math.cos(t * 0.23) * 0.15 * idle;
+  camera.position.copy(base.p).addScaledVector(right, ox).addScaledVector(upV, oy);
+  tmpE.set(-Math.atan(oy / D) + pitch, Math.atan(ox / D) - mouse.x * 0.012, bank);
   camera.quaternion.copy(base.q).multiply(tmpQ.setFromEuler(tmpE));
+
+  // Widen the field of view a little mid-flight for a sense of speed.
+  const fov = BASE_FOV + 16 * flightSpeed;
+  if (Math.abs(camera.fov - fov) > 0.01) {
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
+  // Keep the HUD the same size on screen whatever the current FOV is.
+  hud.scale.setScalar(hudUnitsPerPx() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / fov2());
+
+  updateChoreography(performance.now());
 
   bg.position.copy(base.p);
   stars.rotation.y = t * 0.01;
@@ -1557,15 +1909,20 @@ function frame() {
   });
 
   if (crystal) {
-    const { core, w, ring1, ring2, baseY } = crystal.userData;
-    core.rotation.y = t * 0.4;
-    core.rotation.x = Math.sin(t * 0.3) * 0.3;
-    w.rotation.copy(core.rotation);
-    ring1.rotation.z = t * 0.2;
-    ring2.rotation.z = -t * 0.12;
-    crystal.position.y = baseY + Math.sin(t * 1.2) * 0.08;
+    const C = crystal.userData;
+    // A burst of spin when the home section assembles, easing back to idle.
+    C.spin += dt * C.boost * 9;
+    C.boost *= Math.pow(0.25, dt);
+    C.core.rotation.y = t * 0.4 + C.spin;
+    C.core.rotation.x = Math.sin(t * 0.3) * 0.3;
+    C.w.rotation.copy(C.core.rotation);
+    C.ring1.rotation.z = t * 0.2 - C.spin * 0.6;
+    C.ring2.rotation.z = -t * 0.12 + C.spin * 0.4;
+    C.ring1.rotation.y = Math.sin(t * 0.5) * 0.15;
+    const bob = Math.sin(t * 1.2) * 0.08;
+    for (const o of [C.core, C.w, C.ring1, C.ring2]) o.position.y = bob;
   }
-  icons.forEach((ic) => { ic.rotation.y += dt * 0.6 * ic.userData.spin; ic.rotation.x = Math.sin(t * 0.7) * 0.25; });
+  icons.forEach((ic) => ic.userData.tick(dt, t));
 
   // Hover (mouse)
   const h = pointer.x < 2 ? pick(pointer) : null;
@@ -1579,6 +1936,24 @@ function frame() {
     const prev = e.h;
     e.h += (e.t - e.h) * 0.15;
     if (Math.abs(e.h - prev) > 0.0005 || e.forceApply) e.apply?.(e.h);
+    // Holographic tilt towards the cursor, with a glare at the pointer.
+    const tl = e.tilt;
+    if (!tl) continue;
+    let rx = 0;
+    let ry = 0;
+    if (e === hovered && !reduceMotion) {
+      tl.panel.worldToLocal(_local.copy(pickPoint));
+      const u = clamp(_local.x / (tl.w / 2), -1, 1);
+      const v = clamp(_local.y / (tl.h / 2), -1, 1);
+      ry = u * tl.max;
+      rx = -v * tl.max * 0.8;
+      tl.panel.material.uniforms.uGlare.value.set(u * 0.5 + 0.5, v * 0.5 + 0.5);
+    }
+    const k = Math.min(1, dt * 9);
+    if (Math.abs(tl.obj.rotation.x - rx) + Math.abs(tl.obj.rotation.y - ry) > 1e-4) {
+      tl.obj.rotation.x += (rx - tl.obj.rotation.x) * k;
+      tl.obj.rotation.y += (ry - tl.obj.rotation.y) * k;
+    }
   }
 
   if (hudEls) {
