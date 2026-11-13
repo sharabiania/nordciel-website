@@ -8,9 +8,7 @@
     "home": "Home",
     "work": "Work",
     "services": "Services",
-    "contact": "Contact",
-    "menu": "Menu",
-    "close": "Close"
+    "contact": "Contact"
   },
   "home": {
     "eyebrow": "Canadian software studio",
@@ -60,14 +58,12 @@
   "contact": {
     "label": "Contact",
     "title": "Let's build something.",
-    "lead": "Have a project, a question, or feedback on one of our apps?",
-    "instagram": "Follow us on Instagram"
+    "lead": "Have a project, a question, or feedback on one of our apps?"
   },
   "footer": {
     "copyright": "© {year} Nordciel · Ontario, Canada",
     "copyrightShort": "© {year} Nordciel",
-    "privacy": "Privacy policy",
-    "instagram": "Instagram"
+    "privacy": "Privacy policy"
   },
   "privacy": {
     "metaTitle": "Privacy Policy — Nordciel",

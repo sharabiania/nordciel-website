@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Text } from 'troika-three-text';
 import { initI18n, t as tr, getLang, setLang, onLangChange, LANGUAGES } from './i18n.js?v=__BUILD__';
-import { email, openMail, INSTAGRAM_URL, INSTAGRAM_HANDLE } from './contact.js?v=__BUILD__';
+import { email, openMail, SOCIALS } from './contact.js?v=__BUILD__';
 
 await initI18n();
 const up = (key, params) => String(tr(key, params)).toUpperCase();
@@ -485,19 +485,23 @@ const ICONS = {
   cube: () => edges(new THREE.BoxGeometry(0.62, 0.62, 0.62), COL.cyan),
 };
 
-/** Line-art Instagram glyph (rounded square, lens, dot). */
-function igIcon(s, color, hud = false) {
-  const g = new THREE.Group();
-  const mat = new THREE.LineBasicMaterial({ color, transparent: true, depthTest: !hud });
+/** Rounded-square outline shared by the social glyphs. */
+function roundedSquare(s, r) {
   const h = s / 2;
-  const r = s * 0.28;
   const sq = new THREE.Shape();
   sq.moveTo(-h + r, -h); sq.lineTo(h - r, -h); sq.quadraticCurveTo(h, -h, h, -h + r);
   sq.lineTo(h, h - r); sq.quadraticCurveTo(h, h, h - r, h);
   sq.lineTo(-h + r, h); sq.quadraticCurveTo(-h, h, -h, h - r);
   sq.lineTo(-h, -h + r); sq.quadraticCurveTo(-h, -h, -h + r, -h);
+  return new THREE.BufferGeometry().setFromPoints(sq.getPoints(8));
+}
+
+/** Line-art Instagram glyph (rounded square, lens, dot). */
+function igIcon(s, color, hud = false) {
+  const g = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, depthTest: !hud });
   const lens = new THREE.Path().absarc(0, 0, s * 0.22, 0, Math.PI * 2);
-  g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(sq.getPoints(8)), mat));
+  g.add(new THREE.LineLoop(roundedSquare(s, s * 0.28), mat));
   g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(lens.getPoints(40)), mat));
   const dot = new THREE.Mesh(new THREE.CircleGeometry(s * 0.055, 12), new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: !hud }));
   dot.position.set(s * 0.26, s * 0.26, 0);
@@ -505,6 +509,36 @@ function igIcon(s, color, hud = false) {
   if (hud) g.traverse((o) => { o.renderOrder = 1001; });
   return g;
 }
+
+/** Line-art LinkedIn glyph (rounded square with "in"), matching igIcon. */
+function liIcon(s, color, hud = false) {
+  const g = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, depthTest: !hud });
+  const line = (pts) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(([x, y]) => new THREE.Vector3(x * s, y * s, 0))), mat));
+  g.add(new THREE.LineLoop(roundedSquare(s, s * 0.2), mat));
+  // "i": stem + dot
+  line([[-0.24, -0.24], [-0.24, 0.08]]);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(s * 0.055, 12), new THREE.MeshBasicMaterial({ color, transparent: true, depthTest: !hud }));
+  dot.position.set(-0.24 * s, 0.2 * s, 0);
+  g.add(dot);
+  // "n": stem, then shoulder arc down into the right leg
+  line([[-0.04, -0.24], [-0.04, 0.08]]);
+  const arc = [];
+  for (let k = 0; k <= 12; k++) {
+    const a = Math.PI - (k / 12) * Math.PI;
+    arc.push([0.1 + 0.14 * Math.cos(a), -0.04 + 0.12 * Math.sin(a)]);
+  }
+  line([...arc, [0.24, -0.24]]);
+  if (hud) g.traverse((o) => { o.renderOrder = 1001; });
+  return g;
+}
+
+/** Recolour every material in a glyph group (hover states). */
+const tint = (icon, c) => icon.traverse((o) => o.material?.color.set(c));
+
+/** Glyph builder per social network id (see SOCIALS in contact.js). */
+const SOCIAL_ICONS = { instagram: igIcon, linkedin: liIcon };
+const socialIcon = (id, s, color, hud) => SOCIAL_ICONS[id](s, color, hud);
 
 function starShape(r = 1) {
   const s = new THREE.Shape();
@@ -523,7 +557,7 @@ function addHit(mesh, owner, onClick, apply, enabled) {
   return e;
 }
 const mail = openMail;
-const openInstagram = () => window.open(INSTAGRAM_URL, '_blank', 'noopener');
+const openUrl = (url) => () => window.open(url, '_blank', 'noopener');
 const goPrivacy = () => { location.href = `privacy.html${location.search}`; };
 const EMAIL_LABEL = () => email().toUpperCase();
 
@@ -545,6 +579,33 @@ function Button(label, o) {
     g.position.z = (g.userData.z0 ?? 0) + v * 0.15;
   });
   return g;
+}
+
+/** Round glass button holding only an icon (used for social links). */
+function IconButton(icon, o) {
+  const g = new THREE.Group();
+  const d = o.d;
+  const p = Panel(d, d, { radius: d / 2, fill: 0.22 });
+  icon.position.set(0, 0, 0.05);
+  g.add(p, icon);
+  addHit(p, o.owner, o.onClick, (v) => {
+    p.material.uniforms.uHover.value = v;
+    g.scale.setScalar(1 + v * 0.06);
+    g.position.z = (g.userData.z0 ?? 0) + v * 0.15;
+  });
+  return g;
+}
+
+/** A centred row of social icon buttons; returns the group. */
+function SocialRow(owner, d, iconSize, gap) {
+  const row = new THREE.Group();
+  const total = SOCIALS.length * d + (SOCIALS.length - 1) * gap;
+  SOCIALS.forEach((s, i) => {
+    const b = IconButton(socialIcon(s.id, iconSize, COL.mint), { d, owner, onClick: openUrl(s.url) });
+    b.position.x = -total / 2 + d / 2 + i * (d + gap);
+    row.add(b);
+  });
+  return row;
 }
 
 // Card type sizes per layout (world units).
@@ -813,12 +874,12 @@ function buildContact(g, m) {
     g.add(T(tr('contact.lead'), { ...c, size: 0.34, color: COL.muted, y: 0.4, fit: 16 }));
     const b = Button(EMAIL_LABEL(), { w: 8, h: 1.3, size: 0.4, owner: 'contact', primary: true, onClick: mail });
     b.position.set(0, -1.4, 0);
-    const ig = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: openInstagram, icon: igIcon(0.32, COL.mint) });
-    ig.position.set(-2.8, -2.9, 0);
+    const socials = SocialRow('contact', 0.85, 0.36, 0.35);
+    socials.position.set(0, -2.85, 0);
     const p = Button(up('footer.privacy'), { w: 5.2, h: 0.7, size: 0.16, owner: 'contact', onClick: goPrivacy });
-    p.position.set(2.8, -2.9, 0);
-    g.add(b, ig, p);
-    g.userData.bounds = { top: 3.5, bottom: -3.3, cx: 0 };
+    p.position.set(0, -3.85, 0);
+    g.add(b, socials, p);
+    g.userData.bounds = { top: 3.5, bottom: -4.25, cx: 0 };
     return;
   }
   const tab = m === 'tablet';
@@ -837,19 +898,14 @@ function buildContact(g, m) {
   b.position.set(0, y - 0.575, 0);
   y -= 1.15 + 0.35;
   const sh = 0.85;
-  const igB = Button(INSTAGRAM_HANDLE.toUpperCase(), { w: tab ? 3.9 : CW, h: sh, size: 0.22, owner: 'contact', onClick: openInstagram, icon: igIcon(0.34, COL.mint) });
-  const pB = Button(up('footer.privacy'), { w: tab ? 3.9 : CW, h: sh, size: 0.2, owner: 'contact', onClick: goPrivacy });
-  if (tab) {
-    igB.position.set(-2.05, y - sh / 2, 0);
-    pB.position.set(2.05, y - sh / 2, 0);
-    y -= sh;
-  } else {
-    igB.position.set(0, y - sh / 2, 0);
-    y -= sh + 0.3;
-    pB.position.set(0, y - sh / 2, 0);
-    y -= sh;
-  }
-  g.add(b, igB, pB);
+  const sd = 1.0;
+  const socials = SocialRow('contact', sd, 0.42, 0.4);
+  socials.position.set(0, y - sd / 2, 0);
+  y -= sd + 0.35;
+  const pB = Button(up('footer.privacy'), { w: tab ? 8 : CW, h: sh, size: 0.2, owner: 'contact', onClick: goPrivacy });
+  pB.position.set(0, y - sh / 2, 0);
+  y -= sh;
+  g.add(b, socials, pB);
   g.userData.bounds = { top: 0, bottom: y, cx: 0 };
 }
 
@@ -943,18 +999,31 @@ function buildHud(m) {
   hud.add(E.bar);
 
   if (compact) {
-    E.toggle = T(up('nav.menu'), { font: F_MED, size: Z.toggle, ls: 0.25, ax: 'right', ay: 'middle', hud: true, color: COL.text, onSync: relayout });
+    // Hamburger: three bars that fold into an X while the menu is open.
+    E.burger = new THREE.Group();
+    E.burgerBars = [0, 1, 2].map(() => {
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), hudMat(COL.text));
+      bar.renderOrder = 1001;
+      E.burger.add(bar);
+      return bar;
+    });
     E.toggleHit = HitPlane();
-    addHit(E.toggleHit, 'hud', () => setMenu(!menuOpen), (v) => { E.toggle.color = v > 0.5 ? COL.mint : COL.text; });
+    addHit(E.toggleHit, 'hud', () => setMenu(!menuOpen), (v) => {
+      E.burgerBars.forEach((bar) => bar.material.color.set(v > 0.5 ? COL.mint : COL.text));
+    });
     E.menuPanel = null; // sized in layoutHud
-    // Extra row in the open menu: Instagram + privacy
-    E.mIg = igIcon(16, COL.text, true);
-    E.mIgHit = HitPlane();
-    addHit(E.mIgHit, 'hud', openInstagram, (v) => E.mIg.traverse((o) => o.material?.color.set(v > 0.5 ? COL.mint : COL.text)), () => menuOpen);
+    // Extra row in the open menu: social icons + privacy
+    E.mSocials = SOCIALS.map((s) => {
+      const icon = socialIcon(s.id, 16, COL.text, true);
+      const hit = HitPlane();
+      addHit(hit, 'hud', openUrl(s.url), (v) => tint(icon, v > 0.5 ? COL.mint : COL.text), () => menuOpen);
+      hud.add(icon, hit);
+      return { icon, hit };
+    });
     E.mPrivacy = T(up('footer.privacy'), { font: F_MED, size: 11, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
     E.mPrivacyHit = HitPlane();
     addHit(E.mPrivacyHit, 'hud', goPrivacy, (v) => { E.mPrivacy.color = v > 0.5 ? COL.mint : COL.muted; }, () => menuOpen);
-    hud.add(E.mIg, E.mIgHit, E.mPrivacy, E.mPrivacyHit, E.toggle, E.toggleHit);
+    hud.add(E.mPrivacy, E.mPrivacyHit, E.burger, E.toggleHit);
   } else {
     E.dots = SECTIONS.map(() => {
       const d = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 26), hudMat(COL.muted, 0.5));
@@ -973,20 +1042,18 @@ function buildHud(m) {
   E.copy = T(up(shortCopy ? 'footer.copyrightShort' : 'footer.copyright', { year: YEAR }).replace(' · ', '  ·  '),
     { font: F_MED, size: Z.foot, ls: 0.15, ay: 'middle', hud: true, color: COL.muted });
   hud.add(E.copy);
-  E.igIcon = igIcon(Z.foot * 1.45, COL.muted, true);
-  E.igHit = HitPlane();
-  addHit(E.igHit, 'hud', openInstagram, (v) => {
-    const c = v > 0.5 ? COL.mint : COL.muted;
-    E.igIcon.traverse((o) => o.material?.color.set(c));
-    if (E.igText) E.igText.color = c;
+  E.socials = SOCIALS.map((s) => {
+    const icon = socialIcon(s.id, Z.foot * 1.45, COL.muted, true);
+    const hit = HitPlane();
+    addHit(hit, 'hud', openUrl(s.url), (v) => tint(icon, v > 0.5 ? COL.mint : COL.muted));
+    hud.add(icon, hit);
+    return { icon, hit };
   });
-  hud.add(E.igIcon, E.igHit);
   if (!short) {
-    E.igText = T(up('footer.instagram'), { font: F_MED, size: Z.foot, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
     E.privacy = T(up('footer.privacy'), { font: F_MED, size: Z.foot, ls: 0.15, ax: 'right', ay: 'middle', hud: true, color: COL.muted, onSync: relayout });
     E.privacyHit = HitPlane();
     addHit(E.privacyHit, 'hud', goPrivacy, (v) => { E.privacy.color = v > 0.5 ? COL.mint : COL.muted; });
-    hud.add(E.igText, E.privacy, E.privacyHit);
+    hud.add(E.privacy, E.privacyHit);
   }
   E.hint = T(up(compact ? 'home.hintSwipe' : 'home.hintScroll'), { font: F_MED, size: Z.hint, ls: 0.35, ax: 'center', ay: 'middle', hud: true, color: COL.text });
   hud.add(E.hint);
@@ -1060,11 +1127,23 @@ function layoutHud() {
     E.counter.position.set(right - 8, -100, 0);
     E.counterTotal.position.set(right - 8, -122, 0);
   } else {
-    E.toggle.position.set(right, top, 0);
-    const tw = textWidth(E.toggle, 50);
-    placeHit(E.toggleHit, right - tw / 2, top, tw + 40, 48);
-    const label = up(menuOpen ? 'nav.close' : 'nav.menu');
-    if (E.toggle.text !== label) E.toggle.text = label;
+    const bw = Z.toggle * 1.6;
+    const bt = Math.max(2, Z.toggle * 0.15);
+    const gap = Z.toggle * 0.45;
+    E.burger.position.set(right - bw / 2, top, 0);
+    E.burgerBars.forEach((bar, i) => {
+      bar.scale.set(menuOpen ? bw * 1.05 : bw, bt, 1);
+      if (menuOpen) {
+        bar.position.set(0, 0, 0);
+        bar.rotation.z = i === 0 ? Math.PI / 4 : -Math.PI / 4;
+        bar.visible = i !== 1;
+      } else {
+        bar.position.set(0, (1 - i) * gap, 0);
+        bar.rotation.z = 0;
+        bar.visible = true;
+      }
+    });
+    placeHit(E.toggleHit, right - bw / 2, top, bw + 32, 48);
 
     // Drop-down menu panel under the toggle
     const pw = Math.min(hw - m * 2, 320);
@@ -1098,10 +1177,13 @@ function layoutHud() {
     E.mPrivacy.position.set(pRight - 26, yp, 0);
     const mpw = textWidth(E.mPrivacy, 160);
     placeHit(E.mPrivacyHit, pRight - 26 - mpw / 2, yp, mpw + 20, 40);
-    const igx = pl + pillW / 2 + 30;
-    E.mIg.position.set(igx, yb, 0);
-    placeHit(E.mIgHit, igx, yb, 44, 44);
-    [E.langPill, E.lang, E.langHit, E.mIg, E.mIgHit, E.mPrivacy, E.mPrivacyHit].forEach((o) => { o.visible = menuOpen; });
+    E.mSocials.forEach(({ icon, hit }, i) => {
+      const sx = pl + pillW / 2 + 30 + i * 40;
+      icon.position.set(sx, yb, 0);
+      placeHit(hit, sx, yb, 40, 44);
+      icon.visible = hit.visible = menuOpen;
+    });
+    [E.langPill, E.lang, E.langHit, E.mPrivacy, E.mPrivacyHit].forEach((o) => { o.visible = menuOpen; });
   }
 
   E.dim.scale.set(hw, hh, 1);
@@ -1123,14 +1205,13 @@ function layoutHud() {
     E.privacy.position.set(x, bottom, 0);
     placeHit(E.privacyHit, x - pw / 2, bottom, pw + 16, 36);
     x -= pw + 28;
-    const iw = textWidth(E.igText, 70);
-    E.igText.position.set(x, bottom, 0);
-    E.igIcon.position.set(x - iw - 8 - isz / 2, bottom, 0);
-    placeHit(E.igHit, x - (iw + 8 + isz) / 2, bottom, iw + isz + 24, 36);
-  } else {
-    E.igIcon.position.set(x - isz / 2, bottom, 0);
-    placeHit(E.igHit, x - isz / 2, bottom, 44, 44);
   }
+  // Social icons, right to left, in reverse so they read in SOCIALS order.
+  [...E.socials].reverse().forEach(({ icon, hit }) => {
+    icon.position.set(x - isz / 2, bottom, 0);
+    placeHit(hit, x - isz / 2, bottom, isz + 16, 44);
+    x -= isz + 18;
+  });
   E.hint.position.set(0, bottom + (E.compact ? 26 : 0), 0);
   updateHudActive();
 }

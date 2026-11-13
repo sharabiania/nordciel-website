@@ -7,8 +7,14 @@ const decode = (p) => String.fromCharCode(...[...p].reverse());
 export const email = () => `${decode(PARTS[0])}@${decode(PARTS[1])}.${decode(PARTS[2])}`;
 export const openMail = () => { window.location.href = `${'mai'}${'lto'}:${email()}`; };
 
-export const INSTAGRAM_URL = 'https://www.instagram.com/nordcielinc/';
-export const INSTAGRAM_HANDLE = '@nordcielinc';
+// Social profiles, shown as icons only (no text labels). To add a network,
+// add an entry here, a matching glyph in SOCIAL_ICONS (main.js) and an inline
+// SVG link in the index.html / privacy.html fallbacks. `label` is the
+// accessible name / tooltip.
+export const SOCIALS = [
+  { id: 'instagram', label: 'Instagram', url: 'https://www.instagram.com/nordcielinc/' },
+  { id: 'linkedin', label: 'LinkedIn', url: 'https://www.linkedin.com/company/nordciel/' },
+];
 
 /** Fill <a data-email> elements (text + click) once the page runs. */
 export function applyEmailLinks(root = document) {

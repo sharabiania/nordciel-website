@@ -94,6 +94,17 @@ h1 { font-size: clamp(2.6rem, 8vw, 6rem); line-height: 1.02; font-weight: 700; }
   color: var(--muted); font-size: 0.9rem; background: rgba(5, 8, 22, 0.8);
 }
 .footer a { color: var(--muted); }
+.footer-links { display: inline-flex; align-items: center; gap: 18px; }
+
+/* Social links: icons only */
+.socials { display: inline-flex; align-items: center; gap: 14px; }
+.social { display: inline-flex; color: var(--muted); transition: color .2s; }
+.social:hover, .social:focus-visible { color: var(--aurora-1); }
+.social svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.social svg .fill { fill: currentColor; stroke: none; }
+.contact-socials { margin-top: 28px; }
+.contact-socials .social svg { width: 28px; height: 28px; }
+.contact-socials .socials { gap: 22px; }
 
 /* Privacy page */
 .doc { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 120px 16px 80px; }
