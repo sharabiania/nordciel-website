@@ -13,7 +13,7 @@
   "home": {
     "eyebrow": "Canadian software studio",
     "tagline": "Software under the northern sky.",
-    "lead": "Nordciel builds apps, games and custom software, crafted with care in Ontario, Canada.",
+    "lead": "Nordciel builds apps, games and custom software, crafted with care.",
     "ctaWork": "See our work",
     "hintScroll": "Scroll to explore",
     "hintSwipe": "Swipe to explore"
@@ -87,8 +87,8 @@
     "lead": "Have a project, a question, or feedback on one of our apps?"
   },
   "footer": {
-    "copyright": "© {year} Nordciel · Ontario, Canada",
-    "copyrightShort": "© {year} Nordciel",
+    "copyright": "© {year} Nordciel Inc.",
+    "copyrightShort": "© {year} Nordciel Inc.",
     "privacy": "Privacy policy"
   },
   "privacy": {
@@ -97,7 +97,7 @@
     "updated": "Last updated: November 16, 2026",
     "home": "Home",
     "whoTitle": "Who we are",
-    "who": "Nordciel (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at {email}.",
+    "who": "Nordciel Inc. (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at {email}.",
     "collectTitle": "Information we collect",
     "collect": "Our apps are designed to collect as little information as possible. Unless an app's store listing says otherwise:",
     "collect1": "We do not require an account and do not collect your name, email or contacts.",

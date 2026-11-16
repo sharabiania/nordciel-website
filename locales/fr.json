@@ -13,7 +13,7 @@
   "home": {
     "eyebrow": "Studio logiciel canadien",
     "tagline": "Des logiciels sous le ciel du Nord.",
-    "lead": "Nordciel conçoit des applications, des jeux et des logiciels sur mesure, avec soin, en Ontario, au Canada.",
+    "lead": "Nordciel conçoit des applications, des jeux et des logiciels sur mesure, avec soin.",
     "ctaWork": "Voir nos projets",
     "hintScroll": "Défilez pour explorer",
     "hintSwipe": "Balayez pour explorer"
@@ -87,8 +87,8 @@
     "lead": "Un projet, une question ou un commentaire sur l'une de nos applications ?"
   },
   "footer": {
-    "copyright": "© {year} Nordciel · Ontario, Canada",
-    "copyrightShort": "© {year} Nordciel",
+    "copyright": "© {year} Nordciel Inc.",
+    "copyrightShort": "© {year} Nordciel Inc.",
     "privacy": "Politique de confidentialité"
   },
   "privacy": {
@@ -97,7 +97,7 @@
     "updated": "Dernière mise à jour : 16 novembre 2026",
     "home": "Accueil",
     "whoTitle": "Qui sommes-nous",
-    "who": "Nordciel (« nous ») est un studio logiciel établi en Ontario, au Canada, qui publie des applications et des jeux, dont Pianotes. Vous pouvez nous joindre à {email}.",
+    "who": "Nordciel Inc. (« nous ») est un studio logiciel établi en Ontario, au Canada, qui publie des applications et des jeux, dont Pianotes. Vous pouvez nous joindre à {email}.",
     "collectTitle": "Renseignements recueillis",
     "collect": "Nos applications sont conçues pour recueillir le moins de renseignements possible. Sauf indication contraire dans la fiche de l'application :",
     "collect1": "Aucun compte n'est requis et nous ne recueillons ni votre nom, ni votre courriel, ni vos contacts.",
