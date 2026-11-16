@@ -20,23 +20,46 @@
   },
   "work": {
     "title": "Work",
-    "items": [
-      {
-        "title": "Pianotes",
-        "body": "A music app for learning and practising piano notes.",
-        "status": "Coming soon"
-      },
-      {
-        "title": "Games",
-        "body": "New games and experiences on mobile and Roblox. Coming soon.",
+    "categories": {
+      "games": "Games",
+      "apps": "Apps"
+    },
+    "kinds": {
+      "roblox": "Roblox game",
+      "webGame": "Web game",
+      "android": "Android app",
+      "webApp": "Web app"
+    },
+    "links": {
+      "googlePlay": "Get it on Google Play"
+    },
+    "projects": {
+      "riotCity": {
+        "title": "Riot City",
+        "body": "A third-person street-action game on Roblox: take a district back from a militia regime, block by block.",
         "status": "In development"
       },
-      {
-        "title": "More apps",
-        "body": "Small, focused tools that are a pleasure to use.",
+      "movingDay": {
+        "title": "Moving Day",
+        "body": "Run a small moving crew: pack the truck, survive the drive and unload every box without breaking Grandma's vase.",
+        "status": "In development"
+      },
+      "canadaPaycheque": {
+        "title": "Canada Paycheque",
+        "body": "Estimates your take-home pay in every province and territory: income tax, CPP/QPP, EI and QPIP.",
+        "status": "Coming soon"
+      },
+      "pianotes": {
+        "title": "Pianotes",
+        "body": "Learn to read sheet music: a note appears on the staff and you tap the matching piano key.",
+        "status": "Coming soon"
+      },
+      "speedReader": {
+        "title": "Speed Reader",
+        "body": "Read faster in your browser, one word at a time, at a pace you set. Opens PDF, EPUB and Word files.",
         "status": "Coming soon"
       }
-    ]
+    }
   },
   "services": {
     "title": "Services",

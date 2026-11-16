@@ -31,6 +31,21 @@ All in `main.js`:
 
 Visitors with *reduce motion* turned on get plain transitions with none of the above.
 
+- **Comet cursor** (`cursor.js`): on mouse/trackpad devices the pointer is a comet with a spark tail; it
+  shows an orbit ring over clickable things and bursts on click. On touch screens it appears only while a
+  finger is down: a burst where you tap and a comet following your swipe. *Reduce motion* turns it off.
+
+## Work section (projects and categories)
+
+Projects are listed by category in `projects.js`. To add one:
+
+1. Add an entry to its category in `projects.js` (`id`, `kind`, `icon`, and optionally `url` + `link`).
+2. Add `work.projects.<id>` (`title`, `body`, optional `status`) to every `locales/<lang>.json`.
+   A new `kind`, `link` label or category needs its label under `work.kinds`, `work.links` or `work.categories`.
+3. Add a matching `<article>` to the Work section in `index.html` (the no-WebGL fallback).
+
+The 3D layout (rows, centring, scrolling) adapts to any number of categories and projects.
+
 ## Languages
 
 Text lives in `locales/<lang>.json`. To add a language, copy `en.json`, translate it and add the

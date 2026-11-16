@@ -20,23 +20,46 @@
   },
   "work": {
     "title": "Projets",
-    "items": [
-      {
-        "title": "Pianotes",
-        "body": "Une application musicale pour apprendre et pratiquer les notes au piano.",
-        "status": "Bientôt disponible"
-      },
-      {
-        "title": "Jeux",
-        "body": "De nouveaux jeux et expériences sur mobile et Roblox. Bientôt disponibles.",
+    "categories": {
+      "games": "Jeux",
+      "apps": "Applications"
+    },
+    "kinds": {
+      "roblox": "Jeu Roblox",
+      "webGame": "Jeu Web",
+      "android": "Appli Android",
+      "webApp": "Appli Web"
+    },
+    "links": {
+      "googlePlay": "Disponible sur Google Play"
+    },
+    "projects": {
+      "riotCity": {
+        "title": "Riot City",
+        "body": "Un jeu d'action urbaine à la troisième personne sur Roblox : reprenez un quartier à un régime militaire, rue par rue.",
         "status": "En développement"
       },
-      {
-        "title": "Autres applis",
-        "body": "Des outils simples et ciblés, agréables à utiliser.",
+      "movingDay": {
+        "title": "Moving Day",
+        "body": "Dirigez une petite équipe de déménageurs : remplissez le camion, survivez à la route et déchargez tout sans casser le vase de grand-maman.",
+        "status": "En développement"
+      },
+      "canadaPaycheque": {
+        "title": "Canada Paycheque",
+        "body": "Estime votre salaire net dans chaque province et territoire : impôt sur le revenu, RPC/RRQ, AE et RQAP.",
+        "status": "Bientôt disponible"
+      },
+      "pianotes": {
+        "title": "Pianotes",
+        "body": "Apprenez à lire la musique : une note apparaît sur la portée et vous touchez la touche de piano correspondante.",
+        "status": "Bientôt disponible"
+      },
+      "speedReader": {
+        "title": "Speed Reader",
+        "body": "Lisez plus vite dans votre navigateur, un mot à la fois, au rythme de votre choix. Ouvre les fichiers PDF, EPUB et Word.",
         "status": "Bientôt disponible"
       }
-    ]
+    }
   },
   "services": {
     "title": "Services",

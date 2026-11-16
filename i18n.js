@@ -1,5 +1,5 @@
 // Minimal i18n: one JSON file per language in /locales, keys looked up with
-// dotted paths ("work.items.0.title"), {placeholders} interpolated.
+// dotted paths ("services.items.0.title"), {placeholders} interpolated.
 //
 // Language choice order: ?lang= in the URL > saved preference > browser language > English.
 // English is always loaded as the base, so a key missing in another language falls back to it.
