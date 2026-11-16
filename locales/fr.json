@@ -31,13 +31,16 @@
       "webApp": "Appli Web"
     },
     "links": {
-      "googlePlay": "Disponible sur Google Play"
+      "googlePlay": "Disponible sur Google Play",
+      "betaAccess": "Demander l'accès à la bêta"
     },
     "projects": {
       "riotCity": {
         "title": "Riot City",
         "body": "Un jeu d'action urbaine à la troisième personne sur Roblox : reprenez un quartier à un régime militaire, rue par rue.",
-        "status": "En développement"
+        "status": "Bêta",
+        "mailSubject": "Demande pour la bêta de Riot City",
+        "mailBody": "Bonjour Nordciel,\n\nJ'aimerais participer à la bêta de Riot City comme testeur.\n\nMon nom d'utilisateur Roblox : \n\nSi tu as moins de 13 ans, demande à un parent ou tuteur d'envoyer ce courriel pour toi."
       },
       "movingDay": {
         "title": "Moving Day",
@@ -91,7 +94,7 @@
   "privacy": {
     "metaTitle": "Politique de confidentialité — Nordciel",
     "title": "Politique de confidentialité",
-    "updated": "Dernière mise à jour : 12 novembre 2026",
+    "updated": "Dernière mise à jour : 16 novembre 2026",
     "home": "Accueil",
     "whoTitle": "Qui sommes-nous",
     "who": "Nordciel (« nous ») est un studio logiciel établi en Ontario, au Canada, qui publie des applications et des jeux, dont Pianotes. Vous pouvez nous joindre à {email}.",
@@ -100,6 +103,7 @@
     "collect1": "Aucun compte n'est requis et nous ne recueillons ni votre nom, ni votre courriel, ni vos contacts.",
     "collect2": "Les paramètres et la progression sont enregistrés sur votre appareil.",
     "collect3": "Les boutiques d'applications (Google Play, App Store d'Apple, Roblox) peuvent recueillir des données de diagnostic et d'achat selon leurs propres politiques de confidentialité.",
+    "collect4": "Si vous nous écrivez, par exemple pour demander l'accès à une bêta, nous recevons votre adresse courriel et le contenu de votre message, comme votre nom d'utilisateur Roblox. Nous les utilisons uniquement pour vous répondre et gérer la bêta, et nous les supprimons sur demande.",
     "thirdTitle": "Services tiers",
     "third": "Lorsqu'une application utilise des services tiers (par exemple d'analyse, de rapports de plantage ou de publicité), ces services sont indiqués dans la section « Sécurité des données » de la fiche de l'application et sont régis par leurs propres politiques de confidentialité.",
     "childrenTitle": "Enfants",

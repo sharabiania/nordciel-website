@@ -811,7 +811,7 @@ const CARD_SZ = {
 
 function cardHeight(c, w, s) {
   const lines = estLines(c.body, s.body, w - s.pad * 2);
-  return s.pad + s.num + 0.2 + s.title * 1.15 + 0.3 + lines * s.body * s.lh + (c.footer ? 0.45 + s.footer : 0) + s.pad;
+  return s.pad + s.num + 0.2 + s.title * 1.15 + 0.3 + lines * s.body * s.lh + (c.status || c.linkLabel ? 0.45 + s.footer : 0) + s.pad;
 }
 
 function Card(o) {
@@ -828,14 +828,33 @@ function Card(o) {
   const yTitle = top - s.num - 0.2;
   g.add(T(o.title, { font: F_DISPLAY, size: s.title, x: L, y: yTitle, z: 0.2, fit: w - s.pad * 2 - iconSpace }));
   g.add(T(o.body, { size: s.body, color: COL.muted, lh: s.lh, maxWidth: w - s.pad * 2, x: L, y: yTitle - s.title * 1.15 - 0.3, z: 0.08 }));
-  if (o.footer) {
+  if (o.status || o.linkLabel) {
+    // Footer: status (violet), then the link label (mint) and an arrow, laid out
+    // left to right once the text widths are known.
     const yF = -h / 2 + s.pad;
-    // Linked cards end with an arrow placed after the label once its width is known.
-    const arrow = o.link ? linkArrow(s.footer * 0.85, COL.mint) : null;
-    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: yF, ay: 'bottom', z: 0.14,
-      fit: w - s.pad * 2 - (arrow ? s.footer * 2 : 0),
-      onSync: arrow ? (t) => arrow.position.set(L + textWidth(t, 3) + s.footer * 0.9, yF + t.fontSize * 0.42, 0.14) : undefined }));
-    if (arrow) { arrow.position.set(L + o.footer.length * s.footer * 0.8, yF + s.footer * 0.42, 0.14); g.add(arrow); }
+    const gap = s.footer * 1.8;
+    const est = (str) => str.length * s.footer * 0.8;
+    const ft = { font: F_MED, size: s.footer, ls: 0.15, y: yF, ay: 'bottom', z: 0.14 };
+    let st = null;
+    let lk = null;
+    let arrow = null;
+    const place = () => {
+      if (!lk) return;
+      const x = st ? L + textWidth(st, est(o.status)) + gap : L;
+      lk.position.x = x;
+      arrow.position.set(x + textWidth(lk, est(o.linkLabel)) + s.footer * 0.9, yF + lk.fontSize * 0.42, 0.14);
+    };
+    if (o.status) {
+      st = T(o.status, { ...ft, color: COL.violet, x: L, onSync: place });
+      g.add(st);
+    }
+    if (o.linkLabel) {
+      arrow = linkArrow(s.footer * 0.85, COL.mint);
+      lk = T(o.linkLabel, { ...ft, color: COL.mint, x: L, onSync: place,
+        fit: w - s.pad * 2 - s.footer * 2 - (o.status ? est(o.status) + gap : 0) });
+      g.add(lk, arrow);
+    }
+    place();
   }
   const icon = ICONS[o.icon]();
   icon.scale.setScalar((s.icon / 0.48) * 1.3);
@@ -944,24 +963,26 @@ const SERVICE_ICONS = ['moons', 'belt', 'inclined'];
 /** Translation for an optional key, or null when no locale defines it. */
 const optional = (key) => { const v = tr(key); return v === key ? null : v; };
 const projectCards = (cat) => cat.projects.map((p) => {
-  const status = optional(`work.projects.${p.id}.status`);
+  const key = `work.projects.${p.id}`;
+  const status = optional(`${key}.status`);
+  const action = p.url ? openUrl(p.url)
+    : p.email ? () => mail({ subject: tr(`${key}.mailSubject`), body: tr(`${key}.mailBody`) })
+    : undefined;
   return {
     num: up(`work.kinds.${p.kind}`),
-    title: tr(`work.projects.${p.id}.title`),
-    body: tr(`work.projects.${p.id}.body`),
-    footer: p.url ? up(`work.links.${p.link}`) : status && status.toUpperCase(),
-    footerColor: p.url ? COL.mint : COL.violet,
-    link: !!p.url,
+    title: tr(`${key}.title`),
+    body: tr(`${key}.body`),
+    status: status && status.toUpperCase(),
+    linkLabel: action && p.link ? up(`work.links.${p.link}`) : null,
     icon: p.icon,
-    onClick: p.url ? openUrl(p.url) : undefined,
+    onClick: action,
   };
 });
 const cardList = (key, icns) => tr(`${key}.items`).map((item, i) => ({
   num: String(i + 1).padStart(2, '0'),
   title: item.title,
   body: item.body,
-  footer: item.status ? item.status.toUpperCase() : null,
-  footerColor: COL.violet,
+  status: item.status ? item.status.toUpperCase() : null,
   icon: icns[i],
 }));
 
