@@ -31,13 +31,16 @@
       "webApp": "Web app"
     },
     "links": {
-      "googlePlay": "Get it on Google Play"
+      "googlePlay": "Get it on Google Play",
+      "betaAccess": "Request beta access"
     },
     "projects": {
       "riotCity": {
         "title": "Riot City",
         "body": "A third-person street-action game on Roblox: take a district back from a militia regime, block by block.",
-        "status": "In development"
+        "status": "Beta",
+        "mailSubject": "Riot City beta request",
+        "mailBody": "Hi Nordciel,\n\nI'd like to join the Riot City beta as a tester.\n\nMy Roblox username: \n\nIf you are under 13, please ask a parent or guardian to send this email for you."
       },
       "movingDay": {
         "title": "Moving Day",
@@ -91,7 +94,7 @@
   "privacy": {
     "metaTitle": "Privacy Policy — Nordciel",
     "title": "Privacy Policy",
-    "updated": "Last updated: November 12, 2026",
+    "updated": "Last updated: November 16, 2026",
     "home": "Home",
     "whoTitle": "Who we are",
     "who": "Nordciel (\"we\", \"us\") is a software studio based in Ontario, Canada that publishes apps and games, including Pianotes. You can reach us at {email}.",
@@ -100,6 +103,7 @@
     "collect1": "We do not require an account and do not collect your name, email or contacts.",
     "collect2": "Settings and progress are stored on your device.",
     "collect3": "App stores (Google Play, Apple App Store, Roblox) may collect diagnostic and purchase data under their own privacy policies.",
+    "collect4": "If you email us, for example to request access to a beta, we receive your email address and what you write, such as your Roblox username. We use it only to reply to you and to run the beta, and we delete it when you ask.",
     "thirdTitle": "Third-party services",
     "third": "Where an app uses third-party services (for example analytics, crash reporting or ads), those services are listed in the app's store \"Data safety\" section and governed by their own privacy policies.",
     "childrenTitle": "Children",

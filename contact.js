@@ -5,7 +5,11 @@ const PARTS = [[111, 102, 110, 105], [108, 101, 105, 99, 100, 114, 111, 110], [1
 const decode = (p) => String.fromCharCode(...[...p].reverse());
 
 export const email = () => `${decode(PARTS[0])}@${decode(PARTS[1])}.${decode(PARTS[2])}`;
-export const openMail = () => { window.location.href = `${'mai'}${'lto'}:${email()}`; };
+/** Open the visitor's mail app, optionally with a prefilled subject and body. */
+export const openMail = ({ subject, body } = {}) => {
+  const q = [subject && `subject=${encodeURIComponent(subject)}`, body && `body=${encodeURIComponent(body)}`].filter(Boolean);
+  window.location.href = `${'mai'}${'lto'}:${email()}${q.length ? `?${q.join('&')}` : ''}`;
+};
 
 // Social profiles, shown as icons only (no text labels). To add a network,
 // add an entry here, a matching glyph in SOCIAL_ICONS (main.js) and an inline
@@ -16,14 +20,21 @@ export const SOCIALS = [
   { id: 'linkedin', label: 'LinkedIn', url: 'https://www.linkedin.com/company/nordciel/' },
 ];
 
-/** Fill <a data-email> elements (text + click) once the page runs. */
+/**
+ * Fill <a data-email> elements (text + click) once the page runs. Links with
+ * their own data-i18n text keep it; data-email-subject / data-email-body
+ * prefill the message (set them with data-i18n-attr to translate them).
+ */
 export function applyEmailLinks(root = document) {
   root.querySelectorAll('[data-email]').forEach((a) => {
-    a.textContent = email();
+    if (!a.hasAttribute('data-i18n')) a.textContent = email();
     a.href = '#';
     if (!a.dataset.emailBound) {
       a.dataset.emailBound = '1';
-      a.addEventListener('click', (e) => { e.preventDefault(); openMail(); });
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        openMail({ subject: a.dataset.emailSubject, body: a.dataset.emailBody });
+      });
     }
   });
 }

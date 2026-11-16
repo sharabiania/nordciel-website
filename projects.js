@@ -9,13 +9,17 @@
 //   kind  label shown above the title, from work.kinds in the locale files
 //   icon  card emblem: a star system from ICONS in main.js
 //   url   optional: makes the card clickable (opens in a new tab)
-//   link  label for that link, from work.links in the locale files
+//   email optional: instead of a url, clicking opens an email to us prefilled
+//         with work.projects.<id>.mailSubject / mailBody
+//   link  label for the url or email action, from work.links in the locale files
+//
+// A card can show a status (e.g. "Beta") and a link together.
 
 export const CATEGORIES = [
   {
     id: 'games',
     projects: [
-      { id: 'riotCity', kind: 'roblox', icon: 'binary' },
+      { id: 'riotCity', kind: 'roblox', icon: 'binary', email: true, link: 'betaAccess' },
       { id: 'movingDay', kind: 'webGame', icon: 'giant' },
     ],
   },

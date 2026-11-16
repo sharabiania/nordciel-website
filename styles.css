@@ -166,3 +166,4 @@ body:not(.boot) #loader { opacity: 0; visibility: hidden; pointer-events: none; 
 /* ---------- Comet cursor (cursor.js) ---------- */
 .comet-cursor { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
 html.comet-on, html.comet-on * { cursor: none !important; }
+.card .beta-link { margin-left: 14px; font-size: 0.9rem; }

@@ -39,8 +39,9 @@ Visitors with *reduce motion* turned on get plain transitions with none of the a
 
 Projects are listed by category in `projects.js`. To add one:
 
-1. Add an entry to its category in `projects.js` (`id`, `kind`, `icon`, and optionally `url` + `link`).
-2. Add `work.projects.<id>` (`title`, `body`, optional `status`) to every `locales/<lang>.json`.
+1. Add an entry to its category in `projects.js` (`id`, `kind`, `icon`, and optionally `url` or `email`, plus `link`).
+2. Add `work.projects.<id>` (`title`, `body`, optional `status`; `mailSubject` + `mailBody` for `email`)
+   to every `locales/<lang>.json`.
    A new `kind`, `link` label or category needs its label under `work.kinds`, `work.links` or `work.categories`.
 3. Add a matching `<article>` to the Work section in `index.html` (the no-WebGL fallback).
 
