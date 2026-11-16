@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Text } from 'troika-three-text';
 import { initI18n, t as tr, getLang, setLang, onLangChange, LANGUAGES } from './i18n.js?v=__BUILD__';
 import { email, openMail, SOCIALS } from './contact.js?v=__BUILD__';
+import { CATEGORIES } from './projects.js?v=__BUILD__';
+import { setCursorHover } from './cursor.js?v=__BUILD__';
 
 await initI18n();
 const up = (key, params) => String(tr(key, params)).toUpperCase();
@@ -620,6 +622,21 @@ const ICONS = {
       { r: 0.43, c: COL.violet, size: 0.05, phase: 2.0, ring: { c: COL.mint } },
     ],
   }),
+  giant: () => starSystem({
+    glow: COL.violet,
+    orbits: [
+      { r: 0.19, c: COL.mint, size: 0.028, phase: 2.4 },
+      { r: 0.42, c: COL.cyan, size: 0.056, phase: 0.6, ring: { c: COL.violet }, moon: { r: 0.1, size: 0.015, c: W_ } },
+    ],
+  }),
+  outer: () => starSystem({
+    glow: COL.mint, halo: 0.55,
+    belt: { r: 0.43, w: 0.05, c: COL.cyan, n: 110 },
+    orbits: [
+      { r: 0.16, c: COL.violet, size: 0.028, phase: 4.1 },
+      { r: 0.29, c: COL.mint, size: 0.04, phase: 1.0, incl: 0.4, node: 0.6 },
+    ],
+  }),
   // Services
   moons: () => starSystem({
     glow: COL.mint,
@@ -692,6 +709,14 @@ function liIcon(s, color, hud = false) {
   line([...arc, [0.24, -0.24]]);
   if (hud) g.traverse((o) => { o.renderOrder = 1001; });
   return g;
+}
+
+/** Line-art "open in new tab" arrow (↗), centred on the origin. */
+function linkArrow(s, color) {
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 1 });
+  const h = s / 2;
+  const pts = [[-h, -h], [h, h], [h - s * 0.55, h], [h, h], [h, h - s * 0.55]];
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(([x, y]) => new V3(x, y, 0))), mat);
 }
 
 /** Recolour every material in a glyph group (hover states). */
@@ -799,12 +824,18 @@ function Card(o) {
   const top = h / 2 - s.pad;
   const iconSpace = s.icon * 3.45;
   // Layers sit at different depths above the glass, so tilting the card shows parallax.
-  g.add(T(o.num, { font: F_MED, size: s.num, color: COL.mint, ls: 0.25, x: L, y: top, z: 0.14 }));
+  g.add(T(o.num, { font: F_MED, size: s.num, color: COL.mint, ls: 0.25, x: L, y: top, z: 0.14, fit: w - s.pad * 2 - iconSpace }));
   const yTitle = top - s.num - 0.2;
   g.add(T(o.title, { font: F_DISPLAY, size: s.title, x: L, y: yTitle, z: 0.2, fit: w - s.pad * 2 - iconSpace }));
   g.add(T(o.body, { size: s.body, color: COL.muted, lh: s.lh, maxWidth: w - s.pad * 2, x: L, y: yTitle - s.title * 1.15 - 0.3, z: 0.08 }));
   if (o.footer) {
-    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: -h / 2 + s.pad, ay: 'bottom', z: 0.14 }));
+    const yF = -h / 2 + s.pad;
+    // Linked cards end with an arrow placed after the label once its width is known.
+    const arrow = o.link ? linkArrow(s.footer * 0.85, COL.mint) : null;
+    g.add(T(o.footer, { font: F_MED, size: s.footer, ls: 0.15, color: o.footerColor ?? COL.mint, x: L, y: yF, ay: 'bottom', z: 0.14,
+      fit: w - s.pad * 2 - (arrow ? s.footer * 2 : 0),
+      onSync: arrow ? (t) => arrow.position.set(L + textWidth(t, 3) + s.footer * 0.9, yF + t.fontSize * 0.42, 0.14) : undefined }));
+    if (arrow) { arrow.position.set(L + o.footer.length * s.footer * 0.8, yF + s.footer * 0.42, 0.14); g.add(arrow); }
   }
   const icon = ICONS[o.icon]();
   icon.scale.setScalar((s.icon / 0.48) * 1.3);
@@ -908,8 +939,23 @@ function makeCrystal() {
 }
 
 // Visual config per card; the words come from the locale files (same order).
-const WORK_ICONS = ['trio', 'binary', 'ringed'];
+// Work cards are configured per project in projects.js.
 const SERVICE_ICONS = ['moons', 'belt', 'inclined'];
+/** Translation for an optional key, or null when no locale defines it. */
+const optional = (key) => { const v = tr(key); return v === key ? null : v; };
+const projectCards = (cat) => cat.projects.map((p) => {
+  const status = optional(`work.projects.${p.id}.status`);
+  return {
+    num: up(`work.kinds.${p.kind}`),
+    title: tr(`work.projects.${p.id}.title`),
+    body: tr(`work.projects.${p.id}.body`),
+    footer: p.url ? up(`work.links.${p.link}`) : status && status.toUpperCase(),
+    footerColor: p.url ? COL.mint : COL.violet,
+    link: !!p.url,
+    icon: p.icon,
+    onClick: p.url ? openUrl(p.url) : undefined,
+  };
+});
 const cardList = (key, icns) => tr(`${key}.items`).map((item, i) => ({
   num: String(i + 1).padStart(2, '0'),
   title: item.title,
@@ -1034,6 +1080,76 @@ function buildCardsSection(g, name, num, icns, m) {
   g.userData.bounds = { top: 0, bottom: y + M.gap, cx: 0 };
 }
 
+/** Category label with a hairline running to the right edge of the content. */
+function CategoryHeader(label, x0, x1, size) {
+  const g = new THREE.Group();
+  const line = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.014),
+    new THREE.MeshBasicMaterial({ color: COL.mint, transparent: true, opacity: 0.35, depthWrite: false }));
+  const place = (w) => {
+    const a = x0 + w + size * 1.6;
+    line.scale.x = Math.max(0.01, x1 - a);
+    line.position.set((a + x1) / 2, -size * 0.55, 0.02);
+  };
+  place(label.length * size * 0.9);
+  g.add(T(label, { font: F_MED, size, color: COL.mint, ls: 0.3, x: x0, y: 0, onSync: (t) => place(textWidth(t, 3)) }));
+  g.add(line);
+  return g;
+}
+
+/**
+ * Work: one block per category (projects.js), each a header and rows of cards.
+ * Rows with fewer cards than columns are centred. Taller than the screen on
+ * most layouts, so the section scrolls.
+ */
+function buildWork(g, m) {
+  const label = tr('work.title');
+  const M = MODES[m];
+  const s = CARD_SZ[m];
+  const desk = m === 'desktop';
+  const L = desk ? -10.2 : -M.W / 2;
+  const R = desk ? 10.2 : M.W / 2;
+  const cats = CATEGORIES.map((c) => ({ id: c.id, cards: projectCards(c) })).filter((c) => c.cards.length);
+  let y;
+  if (desk) {
+    g.add(T(`02 / ${label.toUpperCase()}`, { font: F_MED, size: 0.22, color: COL.mint, ls: 0.3, x: L, y: 4.9 }));
+    g.add(T(label, { font: F_DISPLAY, size: 1.3, x: L, y: 4.5, glow: COL.cyan, glowA: 0.3 }));
+    y = 2.75;
+  } else {
+    g.add(T(`02 / ${label.toUpperCase()}`, { font: F_MED, size: 0.24, color: COL.mint, ls: 0.3, x: L, y: 0 }));
+    const hs = m === 'tablet' ? 1.2 : 1.05;
+    g.add(T(label, { font: F_DISPLAY, size: hs, x: L, y: -0.42, glow: COL.cyan, glowA: 0.3, fit: M.W }));
+    y = -0.42 - hs * 1.15 - 0.45;
+  }
+  // One card height for the whole section keeps the grid tidy.
+  const all = cats.flatMap((c) => c.cards);
+  const h = Math.max(desk ? 3.9 : 0, ...all.map((c) => cardHeight(c, M.cardW, s)));
+  const hs = 0.24;
+  const step = M.cardW + M.gap;
+  cats.forEach((cat, ci) => {
+    if (ci > 0) y -= desk ? 0.55 : 0.5;
+    const head = CategoryHeader(up(`work.categories.${cat.id}`), L, R, hs);
+    head.position.y = y;
+    g.add(head);
+    y -= hs + 0.45;
+    for (let r = 0; r < cat.cards.length; r += M.cols) {
+      const row = cat.cards.slice(r, r + M.cols);
+      // Rows are centred (a full row spans exactly the content width).
+      const x0 = -((row.length - 1) * step) / 2;
+      row.forEach((c, k) => {
+        const holder = new THREE.Group();
+        const x = x0 + k * step;
+        holder.position.set(x, y - h / 2, 0);
+        // On desktop the cards curve gently around the viewer.
+        if (desk) holder.rotation.y = -(x / step) * 0.08;
+        holder.add(Card({ ...c, owner: 'work', w: M.cardW, h, s }));
+        g.add(holder);
+      });
+      y -= h + M.gap;
+    }
+  });
+  g.userData.bounds = { top: desk ? 5.2 : 0, bottom: y + M.gap, cx: 0 };
+}
+
 function buildContact(g, m) {
   const c = { ax: 'center', align: 'center' };
   if (m === 'desktop') {
@@ -1087,7 +1203,7 @@ function buildSections(m) {
     g.userData.alpha = -1;
   }
   buildHome(sections.home, m);
-  buildCardsSection(sections.work, 'work', '02', WORK_ICONS, m);
+  buildWork(sections.work, m);
   buildCardsSection(sections.services, 'services', '03', SERVICE_ICONS, m);
   buildContact(sections.contact, m);
   for (const name of SECTIONS) {
@@ -1931,6 +2047,7 @@ function frame() {
     hovered = h;
     if (hovered) hovered.t = 1;
     canvas.style.cursor = hovered?.onClick ? 'pointer' : 'default';
+    setCursorHover(!!hovered?.onClick);
   }
   for (const e of hits) {
     const prev = e.h;

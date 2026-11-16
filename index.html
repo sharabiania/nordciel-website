@@ -61,22 +61,46 @@
 
       <section id="work" class="section">
         <h2 data-i18n="work.title">Work</h2>
-        <div class="cards">
-          <article class="card">
-            <h3 data-i18n="work.items.0.title">Pianotes</h3>
-            <p data-i18n="work.items.0.body">A music app for learning and practising piano notes.</p>
-            <span class="tag" data-i18n="work.items.0.status">Coming soon</span>
-          </article>
-          <article class="card">
-            <h3 data-i18n="work.items.1.title">Games</h3>
-            <p data-i18n="work.items.1.body">New games and experiences on mobile and Roblox. Coming soon.</p>
-            <span class="tag" data-i18n="work.items.1.status">In development</span>
-          </article>
-          <article class="card">
-            <h3 data-i18n="work.items.2.title">More apps</h3>
-            <p data-i18n="work.items.2.body">Small, focused tools that are a pleasure to use.</p>
-            <span class="tag" data-i18n="work.items.2.status">Coming soon</span>
-          </article>
+        <!-- One block per category in projects.js; keep in sync when adding projects. -->
+        <div class="category">
+          <h3 class="category-title" data-i18n="work.categories.games">Games</h3>
+          <div class="cards">
+            <article class="card">
+              <p class="kind" data-i18n="work.kinds.roblox">Roblox game</p>
+              <h3 data-i18n="work.projects.riotCity.title">Riot City</h3>
+              <p data-i18n="work.projects.riotCity.body">A third-person street-action game on Roblox: take a district back from a militia regime, block by block.</p>
+              <span class="tag" data-i18n="work.projects.riotCity.status">In development</span>
+            </article>
+            <article class="card">
+              <p class="kind" data-i18n="work.kinds.webGame">Web game</p>
+              <h3 data-i18n="work.projects.movingDay.title">Moving Day</h3>
+              <p data-i18n="work.projects.movingDay.body">Run a small moving crew: pack the truck, survive the drive and unload every box without breaking Grandma's vase.</p>
+              <span class="tag" data-i18n="work.projects.movingDay.status">In development</span>
+            </article>
+          </div>
+        </div>
+        <div class="category">
+          <h3 class="category-title" data-i18n="work.categories.apps">Apps</h3>
+          <div class="cards">
+            <article class="card">
+              <p class="kind" data-i18n="work.kinds.android">Android app</p>
+              <h3 data-i18n="work.projects.canadaPaycheque.title">Canada Paycheque</h3>
+              <p data-i18n="work.projects.canadaPaycheque.body">Estimates your take-home pay in every province and territory: income tax, CPP/QPP, EI and QPIP.</p>
+              <span class="tag" data-i18n="work.projects.canadaPaycheque.status">Coming soon</span>
+            </article>
+            <article class="card">
+              <p class="kind" data-i18n="work.kinds.android">Android app</p>
+              <h3 data-i18n="work.projects.pianotes.title">Pianotes</h3>
+              <p data-i18n="work.projects.pianotes.body">Learn to read sheet music: a note appears on the staff and you tap the matching piano key.</p>
+              <span class="tag" data-i18n="work.projects.pianotes.status">Coming soon</span>
+            </article>
+            <article class="card">
+              <p class="kind" data-i18n="work.kinds.webApp">Web app</p>
+              <h3 data-i18n="work.projects.speedReader.title">Speed Reader</h3>
+              <p data-i18n="work.projects.speedReader.body">Read faster in your browser, one word at a time, at a pace you set. Opens PDF, EPUB and Word files.</p>
+              <span class="tag" data-i18n="work.projects.speedReader.status">Coming soon</span>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -118,6 +142,7 @@
       if (!window.__ncReady) { document.body.classList.remove('boot'); document.body.classList.add('fallback'); }
     }, 10000);
   </script>
+  <script type="module" src="cursor.js?v=__BUILD__"></script>
   <script type="module" src="main.js?v=__BUILD__"></script>
 </body>
 </html>
